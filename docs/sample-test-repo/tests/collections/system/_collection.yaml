@@ -1,0 +1,14 @@
+# system/_collection.yaml — System health and metadata endpoints
+name: System API
+description: Health check and system-level metadata endpoints
+
+order:
+  - health
+  - models
+
+tags:
+  - system
+  - smoke
+  - readonly
+
+# No setup/teardown needed for read-only system endpoints

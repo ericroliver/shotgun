@@ -1,0 +1,28 @@
+# banger.config.yaml — Global configuration
+version: 1
+
+defaults:
+  env: local
+  timeout: 10
+  follow_redirects: true
+  content_type: application/json
+
+paths:
+  tests: ./tests
+  envs: ./envs
+  expected: ./expected
+  runs: ./runs
+  scripts: ./scripts
+
+# These jq paths are stripped from ALL snapshot diffs (can be overridden per-test)
+ignore_fields_global:
+  - "**.timestamp"
+  - "**.createdAt"
+  - "**.updatedAt"
+  - "**.requestId"
+  - "**.traceId"
+
+reporting:
+  format: pretty           # pretty | json | tap
+  on_fail: diff            # diff | body | silent
+  save_passing_logs: true  # write .log files even for passing tests

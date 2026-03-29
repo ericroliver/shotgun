@@ -1,0 +1,31 @@
+# suspend-agent.yaml — POST /api/agents/{name}/actions/suspend
+name: Suspend Agent
+description: Sends the suspend action to the agent. Validates state transition.
+collection: agents
+tags:
+  - agents
+  - actions
+  - write
+
+pre: |
+  const name = ctx.vars.createdAgentName || ctx.env.AGENT_NAME;
+  ctx.request.path = `/api/agents/${name}/actions/suspend`;
+  ctx.log(`Suspending agent: ${name}`);
+
+request:
+  method: POST
+  path: /api/agents/${AGENT_NAME}/actions/suspend
+  headers:
+    Accept: application/json
+    Content-Type: application/json
+
+response:
+  status: 200
+  snapshot: false
+  shape:
+    - 'has("status")'
+    - '.status == "suspended" or .status == "suspending"'
+
+post: |
+  ctx.vars.agentSuspended = true;
+  ctx.log(`Suspend response status: ${ctx.response.body.status}`);

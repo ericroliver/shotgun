@@ -1,0 +1,42 @@
+# agents/_collection.yaml — Collection-level metadata and hooks
+name: Agents API
+description: Full CRUD coverage for the /api/agents resource
+
+# Test execution order — unlisted files run alphabetically after these
+order:
+  - get-agents
+  - create-agent
+  - get-agent-by-name
+  - get-agent-config
+  - get-agent-info
+  - get-agent-logs
+  - suspend-agent
+  - resume-agent
+  - delete-agent
+
+tags:
+  - agents
+  - crud
+
+# Runs ONCE before the first test in this collection.
+# ctx.vars set here persist across all tests in the run.
+setup: |
+  // Generate a unique agent name for this run so tests don't collide
+  const ts = Date.now();
+  ctx.vars.testAgentName = `banger-agent-${ts}`;
+  ctx.log(`Test agent name for this run: ${ctx.vars.testAgentName}`);
+
+# Runs ONCE after the last test, even if tests fail.
+# Use to clean up any data created during the run.
+teardown: |
+  if (ctx.vars.createdAgentName) {
+    ctx.log(`Teardown: deleting agent "${ctx.vars.createdAgentName}"`);
+    try {
+      const res = await ctx.http.delete(`/api/agents/${ctx.vars.createdAgentName}`);
+      ctx.log(`Delete response: ${res.status}`);
+    } catch (err) {
+      ctx.log(`Teardown delete failed (non-fatal): ${err.message}`);
+    }
+  } else {
+    ctx.log('No agent was created — skipping teardown delete');
+  }

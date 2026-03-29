@@ -1,0 +1,20 @@
+# Source files — not needed in published package (dist/ is what ships)
+src/
+scripts/
+tests/
+docs/
+envs/
+expected/
+runs/
+actual/
+
+# Dev config
+tsconfig.json
+.gitignore
+.eslintrc*
+*.log
+
+# Test artifacts
+runs/
+actual/
+diffs/

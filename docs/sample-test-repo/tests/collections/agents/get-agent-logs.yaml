@@ -1,0 +1,34 @@
+# get-agent-logs.yaml — GET /api/agents/{name}/logs
+name: Get Agent Logs
+description: Returns recent log entries for the agent. Response is volatile — shape only.
+collection: agents
+tags:
+  - agents
+  - readonly
+
+pre: |
+  const name = ctx.vars.createdAgentName || ctx.env.AGENT_NAME;
+  ctx.request.path = `/api/agents/${name}/logs`;
+
+request:
+  method: GET
+  path: /api/agents/${AGENT_NAME}/logs
+  headers:
+    Accept: application/json
+  params:
+    limit: 50
+    level: info
+
+response:
+  status: 200
+
+  snapshot: false   # log content is volatile by nature
+
+  shape:
+    - 'has("logs")'
+    - '.logs | type == "array"'
+
+post: |
+  const body = ctx.response.body;
+  assert(Array.isArray(body.logs), '"logs" must be an array');
+  ctx.log(`Log entries returned: ${body.logs.length}`);

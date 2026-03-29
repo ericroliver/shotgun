@@ -1,0 +1,43 @@
+# get-agent-by-name.yaml — GET /api/agents/{name}
+name: Get Agent by Name
+description: Fetches a single agent by name. Uses name from ctx.vars set by create-agent.
+collection: agents
+tags:
+  - smoke
+  - agents
+  - readonly
+
+pre: |
+  // Use the created agent name, falling back to env var for standalone runs
+  const name = ctx.vars.createdAgentName || ctx.env.AGENT_NAME;
+  assert(!!name, 'No agent name available — run create-agent first or set AGENT_NAME in env');
+  ctx.request.path = `/api/agents/${name}`;
+  ctx.log(`Fetching agent: ${name}`);
+
+request:
+  method: GET
+  # path is set dynamically in pre-script; this is the template for reference
+  path: /api/agents/${AGENT_NAME}
+  headers:
+    Accept: application/json
+
+response:
+  status: 200
+
+  snapshot: true
+  ignore_fields:
+    - ".timestamp"
+    - ".lastActive"
+    - ".updatedAt"
+
+  shape:
+    - 'has("name")'
+    - 'has("status")'
+    - 'has("config")'
+    - '.config | type == "object"'
+
+post: |
+  const body = ctx.response.body;
+  const expectedName = ctx.vars.createdAgentName || ctx.env.AGENT_NAME;
+  assert(body.name === expectedName, `Expected name "${expectedName}", got "${body.name}"`);
+  ctx.log(`Agent "${body.name}" status: ${body.status}`);

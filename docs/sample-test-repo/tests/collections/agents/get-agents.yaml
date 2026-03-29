@@ -1,0 +1,43 @@
+# get-agents.yaml — GET /api/agents
+name: Get All Agents
+description: Returns the full list of agents. Validates structure, status, and snapshot.
+collection: agents
+tags:
+  - smoke
+  - agents
+  - readonly
+
+request:
+  method: GET
+  path: /api/agents
+  headers:
+    Accept: application/json
+  params:
+    limit: 20
+    offset: 0
+
+response:
+  status: 200
+
+  snapshot: true
+  ignore_fields:
+    - "**.id"
+    - "**.timestamp"
+    - "**.lastActive"
+
+  # jq expressions — each must evaluate to truthy or test fails
+  shape:
+    - 'has("agents")'
+    - '.agents | type == "array"'
+    - 'has("total")'
+    - '.total | type == "number"'
+
+post: |
+  assert(ctx.response.status === 200, 'Expected HTTP 200 on GET /api/agents');
+  const body = ctx.response.body;
+  assert(Array.isArray(body.agents), '"agents" field must be an array');
+  assert(typeof body.total === 'number', '"total" must be a number');
+
+  // Stash count for potential use in downstream tests
+  ctx.vars.initialAgentCount = body.total;
+  ctx.log(`Found ${body.total} agent(s) on GET /api/agents`);

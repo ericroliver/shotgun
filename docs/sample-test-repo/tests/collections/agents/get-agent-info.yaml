@@ -1,0 +1,32 @@
+# get-agent-info.yaml — GET /api/agents/{name}/info
+name: Get Agent Info
+description: Returns runtime info about the agent (status, uptime, memory usage, etc.)
+collection: agents
+tags:
+  - agents
+  - readonly
+
+pre: |
+  const name = ctx.vars.createdAgentName || ctx.env.AGENT_NAME;
+  ctx.request.path = `/api/agents/${name}/info`;
+
+request:
+  method: GET
+  path: /api/agents/${AGENT_NAME}/info
+  headers:
+    Accept: application/json
+
+response:
+  status: 200
+
+  snapshot: false   # runtime info is volatile — shape only, no snapshot
+
+  shape:
+    - 'has("name")'
+    - 'has("status")'
+    - 'has("uptime") or has("startedAt")'
+
+post: |
+  const info = ctx.response.body;
+  assert(typeof info.status === 'string', '"status" must be a string');
+  ctx.log(`Agent info — status: ${info.status}`);

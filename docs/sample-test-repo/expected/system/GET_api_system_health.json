@@ -1,0 +1,8 @@
+{
+  "services": {
+    "database": "healthy",
+    "queue": "healthy",
+    "storage": "healthy"
+  },
+  "status": "healthy"
+}

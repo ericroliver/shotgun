@@ -1,0 +1,51 @@
+# create-agent.yaml — POST /api/agents
+name: Create Agent
+description: Creates a new agent using the name generated in collection setup.
+collection: agents
+tags:
+  - agents
+  - write
+
+pre: |
+  // Use the name generated in _collection.yaml setup hook
+  const agentName = ctx.vars.testAgentName;
+  assert(!!agentName, 'testAgentName must be set by collection setup');
+  ctx.log(`Creating agent: ${agentName}`);
+
+  // Inject the agent name into the request body at runtime
+  ctx.request.body = {
+    name: agentName,
+    config: {
+      model: 'gpt-4o',
+      temperature: 0.7,
+      max_tokens: 1024,
+    },
+    description: 'Created by banger test suite',
+  };
+
+request:
+  method: POST
+  path: /api/agents
+  headers:
+    Accept: application/json
+    Content-Type: application/json
+  # body is set dynamically in pre-script above
+
+response:
+  status: 201
+
+  # No snapshot for writes — shape assertions are enough
+  snapshot: false
+
+  shape:
+    - 'has("name")'
+    - 'has("status")'
+    - '.status == "created" or .status == "pending"'
+
+post: |
+  const body = ctx.response.body;
+  assert(body.name === ctx.vars.testAgentName, 'Created agent name must match requested name');
+
+  // Stash the created name for later tests and teardown
+  ctx.vars.createdAgentName = body.name;
+  ctx.log(`Agent created successfully: ${body.name}`);

@@ -1,0 +1,36 @@
+# get-agent-config.yaml — GET /api/agents/{name}/config
+name: Get Agent Config
+description: Returns the configuration block for a specific agent.
+collection: agents
+tags:
+  - agents
+  - readonly
+
+pre: |
+  const name = ctx.vars.createdAgentName || ctx.env.AGENT_NAME;
+  ctx.request.path = `/api/agents/${name}/config`;
+
+request:
+  method: GET
+  path: /api/agents/${AGENT_NAME}/config
+  headers:
+    Accept: application/json
+
+response:
+  status: 200
+
+  snapshot: true
+  ignore_fields:
+    - ".updatedAt"
+
+  shape:
+    - 'has("model")'
+    - 'has("temperature")'
+    - '.temperature | . >= 0 and . <= 2'
+    - 'has("max_tokens")'
+
+post: |
+  const cfg = ctx.response.body;
+  assert(typeof cfg.model === 'string', '"model" must be a string');
+  assert(cfg.temperature >= 0 && cfg.temperature <= 2, 'temperature out of range');
+  ctx.log(`Config OK — model: ${cfg.model}, temp: ${cfg.temperature}`);

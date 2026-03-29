@@ -1,0 +1,22 @@
+node_modules/
+dist/
+
+# Generated test run output — never commit
+runs/
+
+# Actual responses captured during runs
+actual/
+
+# Real env files contain secrets — commit only .example files
+envs/*.env
+!envs/*.env.example
+!envs/local.env.example
+
+# Keep expected/ baselines in source control (they are the source of truth)
+# !expected/
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/settings.json

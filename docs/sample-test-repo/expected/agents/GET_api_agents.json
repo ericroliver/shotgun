@@ -1,0 +1,15 @@
+{
+  "agents": [
+    {
+      "config": {
+        "max_tokens": 1024,
+        "model": "gpt-4o",
+        "temperature": 0.7
+      },
+      "description": "Primary QA smoke test agent",
+      "name": "qa-smoke-agent",
+      "status": "running"
+    }
+  ],
+  "total": 1
+}

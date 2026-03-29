@@ -1,0 +1,33 @@
+# resume-agent.yaml — POST /api/agents/{name}/actions/resume
+name: Resume Agent
+description: Resumes a previously suspended agent. Only meaningful after suspend.
+collection: agents
+tags:
+  - agents
+  - actions
+  - write
+
+pre: |
+  const name = ctx.vars.createdAgentName || ctx.env.AGENT_NAME;
+  ctx.request.path = `/api/agents/${name}/actions/resume`;
+
+  if (!ctx.vars.agentSuspended) {
+    ctx.log('Warning: agent was not suspended in this run — resume may behave unexpectedly');
+  }
+
+request:
+  method: POST
+  path: /api/agents/${AGENT_NAME}/actions/resume
+  headers:
+    Accept: application/json
+    Content-Type: application/json
+
+response:
+  status: 200
+  snapshot: false
+  shape:
+    - 'has("status")'
+    - '.status == "running" or .status == "resuming" or .status == "pending"'
+
+post: |
+  ctx.log(`Resume response status: ${ctx.response.body.status}`);

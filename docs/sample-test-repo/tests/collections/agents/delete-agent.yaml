@@ -1,0 +1,32 @@
+# delete-agent.yaml — DELETE /api/agents/{name}
+name: Delete Agent
+description: Deletes the agent created in this run. Validates 204 or 200 response.
+collection: agents
+tags:
+  - agents
+  - write
+
+pre: |
+  const name = ctx.vars.createdAgentName;
+  assert(!!name, 'No createdAgentName in ctx.vars — cannot delete');
+  ctx.request.path = `/api/agents/${name}`;
+  ctx.log(`Deleting agent: ${name}`);
+
+request:
+  method: DELETE
+  path: /api/agents/${AGENT_NAME}
+  headers:
+    Accept: application/json
+
+response:
+  # Accept either 200 (with body) or 204 (no content)
+  status: 204
+  snapshot: false
+
+post: |
+  const s = ctx.response.status;
+  assert(s === 200 || s === 204, `Expected 200 or 204 on delete, got ${s}`);
+
+  // Signal teardown that delete already happened
+  ctx.vars.createdAgentName = null;
+  ctx.log(`Agent deleted (${s})`);

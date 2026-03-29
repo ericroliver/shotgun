@@ -1,0 +1,20 @@
+{
+  "data": [
+    {
+      "id": "gpt-4o",
+      "object": "model",
+      "owned_by": "openai"
+    },
+    {
+      "id": "gpt-4o-mini",
+      "object": "model",
+      "owned_by": "openai"
+    },
+    {
+      "id": "claude-3-5-sonnet",
+      "object": "model",
+      "owned_by": "anthropic"
+    }
+  ],
+  "object": "list"
+}

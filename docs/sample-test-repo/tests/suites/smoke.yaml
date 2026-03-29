@@ -1,0 +1,13 @@
+# smoke.yaml — Fast, read-only subset for CI gate or quick checks
+name: Smoke Suite
+description: >
+  Runs only GET endpoints tagged 'smoke'. Safe to run against production.
+  Should complete in under 30 seconds.
+
+collections:
+  - system
+  - agents
+
+# Only run tests carrying ALL of these tags within each collection
+tags:
+  - smoke

@@ -1,0 +1,44 @@
+# health.yaml — GET /api/system/health
+name: System Health Check
+description: Validates the system health endpoint returns healthy status.
+collection: system
+tags:
+  - smoke
+  - system
+  - readonly
+
+request:
+  method: GET
+  path: /api/system/health
+  headers:
+    Accept: application/json
+
+response:
+  status: 200
+
+  snapshot: true
+  ignore_fields:
+    - ".timestamp"
+    - ".uptime"
+    - ".version"   # version changes on deploy; ignore in snapshot
+
+  shape:
+    - 'has("status")'
+    - '.status == "healthy" or .status == "ok"'
+    - 'has("services")'
+    - '.services | type == "object"'
+
+post: |
+  const body = ctx.response.body;
+  const ok = ['healthy', 'ok'];
+  assert(ok.includes(body.status), `Health status "${body.status}" not in allowed set: ${ok.join(', ')}`);
+  ctx.log(`System health: ${body.status}`);
+
+  // Warn (don't fail) if any service is degraded
+  if (body.services) {
+    for (const [svc, state] of Object.entries(body.services)) {
+      if (state !== 'healthy' && state !== 'ok') {
+        ctx.log(`WARNING: service "${svc}" reported status: ${state}`);
+      }
+    }
+  }
