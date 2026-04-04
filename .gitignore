@@ -1,5 +1,7 @@
 node_modules/
 dist/
+local*/
+bin/
 
 # Generated test run output — never commit
 runs/

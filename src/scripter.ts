@@ -43,7 +43,7 @@ export async function runScript(
   },
 ): Promise<ScriptRunResult> {
   const tmpId = randomBytes(6).toString('hex');
-  const scriptFile = join(tmpdir(), `banger-script-${tmpId}.ts`);
+  const scriptFile = join(tmpdir(), `banger-script-${tmpId}.mts`);
 
   // Load available shared scripts
   const sharedScripts = loadSharedScriptImports(ctx.scriptsDir);
