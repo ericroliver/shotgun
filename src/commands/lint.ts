@@ -1,5 +1,5 @@
 /**
- * src/commands/lint.ts — banger lint subcommand
+ * src/commands/lint.ts — shotgun lint subcommand
  * Validates all YAML test files against the TestDefinition schema (no HTTP calls).
  */
 

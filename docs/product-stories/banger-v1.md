@@ -1,4 +1,4 @@
-# Banger — Product Stories: v1 MVP
+# Shotgun — Product Stories: v1 MVP
 
 > Architecture reference: [`docs/technical/architecture.md`](../technical/architecture.md)
 > Status: Ready for development
@@ -12,7 +12,7 @@
 ### Story 1 — Project Scaffold & CLI Entrypoint
 
 **As a** developer,
-**I want** to run `banger` from the command line,
+**I want** to run `shotgun` from the command line,
 **so that** I have a working CLI skeleton to build against.
 
 **Acceptance Criteria:**
@@ -21,7 +21,7 @@
 - [ ] `src/index.ts` is the CLI entrypoint using `process.argv` parsing (no heavy CLI framework needed yet)
 - [ ] Subcommands recognized: `run`, `snapshot`, `report`, `lint`
 - [ ] Unknown subcommands print usage and exit 1
-- [ ] `banger --version` prints current version from package.json
+- [ ] `shotgun --version` prints current version from package.json
 
 **Notes:**
 - Use `tsx src/index.ts` as the dev runner
@@ -80,8 +80,8 @@
 - [ ] Reads `tests/collections/{name}/_collection.yaml` for metadata and order
 - [ ] Discovers all `.yaml` files in the collection directory (excluding `_collection.yaml`)
 - [ ] Respects `order:` array in `_collection.yaml` if present; unlisted files appended alphabetically
-- [ ] `banger run --collection agents` runs only that collection
-- [ ] `banger run` with no flags runs all discovered collections in alphabetical order
+- [ ] `shotgun run --collection agents` runs only that collection
+- [ ] `shotgun run` with no flags runs all discovered collections in alphabetical order
 
 ---
 
@@ -145,10 +145,10 @@
 **so that** future runs can detect unexpected changes.
 
 **Acceptance Criteria:**
-- [ ] `banger snapshot` (or `banger run` on first encounter of a test with `snapshot: true`) writes `expected/{collection}/{sanitized_name}.json`
+- [ ] `shotgun snapshot` (or `shotgun run` on first encounter of a test with `snapshot: true`) writes `expected/{collection}/{sanitized_name}.json`
 - [ ] Body is normalized before saving: `ignore_fields` paths stripped, keys sorted with `jq -S`
 - [ ] Sanitized filename: `{METHOD}_{path_with_slashes_replaced}.json`
-- [ ] `banger snapshot --file tests/collections/agents/get-agents.yaml` updates a single test's baseline
+- [ ] `shotgun snapshot --file tests/collections/agents/get-agents.yaml` updates a single test's baseline
 - [ ] Snapshot files are human-readable, formatted JSON
 
 ---
@@ -165,7 +165,7 @@
 - [ ] If diff is empty: assertion passes
 - [ ] If diff is non-empty: assertion fails, diff output included in run log
 - [ ] `assertions.snapshot` in run log records pass/fail and diff content
-- [ ] If no baseline file exists and `snapshot: true`: test is marked `needs_baseline` (not failed) and user is prompted to run `banger snapshot`
+- [ ] If no baseline file exists and `snapshot: true`: test is marked `needs_baseline` (not failed) and user is prompted to run `shotgun snapshot`
 
 ---
 
@@ -176,10 +176,10 @@
 **so that** I can handle auth refresh, extract variables, and run rich assertions.
 
 **Acceptance Criteria:**
-- [ ] `src/scripter.ts` wraps inline script content, injects `BangerContext`, transpiles and runs via `tsx` eval
+- [ ] `src/scripter.ts` wraps inline script content, injects `ShotgunContext`, transpiles and runs via `tsx` eval
 - [ ] `pre` script runs before curl; can mutate `ctx.request.*`
 - [ ] `post` script runs after all other assertions; receives `ctx.response.*`
-- [ ] `ctx.assert(condition, message)` throws `BangerAssertionError` on failure
+- [ ] `ctx.assert(condition, message)` throws `ShotgunAssertionError` on failure
 - [ ] `ctx.log(message)` writes to stdout and to the per-test log
 - [ ] `ctx.vars` is a shared mutable store across all tests in a run
 - [ ] `ctx.http.*` methods available for setup/teardown HTTP calls
@@ -198,7 +198,7 @@
 **Acceptance Criteria:**
 - [ ] `_collection.yaml` `setup` script runs once before the first test in the collection
 - [ ] `_collection.yaml` `teardown` script runs once after the last test (even if tests fail)
-- [ ] Both scripts receive full `BangerContext`
+- [ ] Both scripts receive full `ShotgunContext`
 - [ ] `ctx.vars` set in `setup` is available in all tests and `teardown`
 - [ ] If `setup` throws, all tests in the collection are marked `skipped` with reason
 - [ ] If `teardown` throws, it is logged but does not affect test results
@@ -216,8 +216,8 @@
 - [ ] Writes `summary.json` at the end of the run (schema: see [`docs/technical/architecture.md §12`](../technical/architecture.md))
 - [ ] Writes one `.log` JSON file per test: `{collection}--{sanitized_name}.log`
 - [ ] `runs/` is added to `.gitignore`
-- [ ] `banger report` reads latest run from `runs/` and prints human-readable table to stdout
-- [ ] `banger report --run 2026-03-28_20-05-32` reads that specific run
+- [ ] `shotgun report` reads latest run from `runs/` and prints human-readable table to stdout
+- [ ] `shotgun report --run 2026-03-28_20-05-32` reads that specific run
 
 ---
 
@@ -237,18 +237,18 @@
 
 ---
 
-### Story 14 — `banger lint` — YAML Validation Command
+### Story 14 — `shotgun lint` — YAML Validation Command
 
 **As a** test author,
 **I want** to validate my test YAML files without running them,
 **so that** I catch schema errors before wasting a test run.
 
 **Acceptance Criteria:**
-- [ ] `banger lint` discovers all YAML files in `tests/`
+- [ ] `shotgun lint` discovers all YAML files in `tests/`
 - [ ] Validates each against the `TestDefinition` zod schema
 - [ ] Reports file path + field-level error for every invalid file
 - [ ] Exits 0 if all valid, 1 if any invalid
-- [ ] Can lint a specific file: `banger lint --file tests/collections/agents/get-agents.yaml`
+- [ ] Can lint a specific file: `shotgun lint --file tests/collections/agents/get-agents.yaml`
 
 ---
 

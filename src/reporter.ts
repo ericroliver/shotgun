@@ -61,7 +61,7 @@ export function printTestResult(result: TestResult): void {
     }
     case 'needs_baseline':
       process.stdout.write(`${c.yellow}NEEDS BASELINE${c.reset}\n`);
-      console.log(`    ${c.yellow}Run: banger snapshot to capture baseline${c.reset}`);
+      console.log(`    ${c.yellow}Run: shotgun snapshot to capture baseline${c.reset}`);
       break;
     case 'skipped':
       process.stdout.write(`${c.gray}SKIPPED${c.reset}\n`);
@@ -69,7 +69,7 @@ export function printTestResult(result: TestResult): void {
   }
 
   // Print script output in debug mode
-  if (process.env.BANGER_DEBUG && result.scriptOutput?.length) {
+  if (process.env.SHOTGUN_DEBUG && result.scriptOutput?.length) {
     for (const msg of result.scriptOutput) {
       console.log(`    ${c.dim}[script] ${msg}${c.reset}`);
     }
@@ -110,7 +110,7 @@ export function printSummary(summary: RunSummary): void {
 }
 
 // ---------------------------------------------------------------------------
-// Full report (banger report command)
+// Full report (shotgun report command)
 // ---------------------------------------------------------------------------
 
 export function printReport(summary: RunSummary, format: 'pretty' | 'json' | 'tap' = 'pretty'): void {

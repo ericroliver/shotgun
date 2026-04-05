@@ -1,7 +1,7 @@
 /**
  * src/scripter.ts
  * Executes inline TypeScript pre/post scripts from test definitions.
- * Scripts receive a BangerContext and run via tsx eval.
+ * Scripts receive a ShotgunContext and run via tsx eval.
  */
 
 import { spawn } from 'node:child_process';
@@ -10,13 +10,13 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
 import type {
-  BangerContext,
-  BangerRequest,
-  BangerResponse,
+  ShotgunContext,
+  ShotgunRequest,
+  ShotgunResponse,
   EnvVars,
-  BangerAssertionError as BangerAssertionErrorType,
+  ShotgunAssertionError as ShotgunAssertionErrorType,
 } from './types.js';
-import { BangerAssertionError } from './types.js';
+import { ShotgunAssertionError } from './types.js';
 
 export interface ScriptRunResult {
   passed: boolean;
@@ -26,7 +26,7 @@ export interface ScriptRunResult {
   error?: string;
   logs: string[];
   /** Mutations applied to the request (from pre-script) */
-  requestMutations?: Partial<BangerRequest>;
+  requestMutations?: Partial<ShotgunRequest>;
   /** Mutations applied to shared vars (from any script) */
   varMutations?: Record<string, unknown>;
 }
@@ -42,13 +42,13 @@ export async function runScript(
   ctx: {
     env: EnvVars;
     vars: SharedVars;
-    request: BangerRequest;
-    response?: BangerResponse;
+    request: ShotgunRequest;
+    response?: ShotgunResponse;
     scriptsDir: string;
   },
 ): Promise<ScriptRunResult> {
   const tmpId = randomBytes(6).toString('hex');
-  const scriptFile = join(tmpdir(), `banger-script-${tmpId}.mts`);
+  const scriptFile = join(tmpdir(), `shotgun-script-${tmpId}.mts`);
 
   // Load available shared scripts
   const sharedScripts = loadSharedScriptImports(ctx.scriptsDir);
@@ -69,8 +69,8 @@ function buildScriptWrapper(
   ctx: {
     env: EnvVars;
     vars: SharedVars;
-    request: BangerRequest;
-    response?: BangerResponse;
+    request: ShotgunRequest;
+    response?: ShotgunResponse;
     scriptsDir: string;
   },
   sharedScripts: Record<string, string>,
@@ -94,7 +94,7 @@ function buildScriptWrapper(
   return `
 ${sharedImports}
 
-// ---- banger script runtime ----
+// ---- shotgun script runtime ----
 
 const __ctxData = ${ctxData};
 
@@ -111,14 +111,14 @@ const ctx = {
   assert(condition: boolean, message: string): void {
     if (!condition) {
       const err = new Error(message);
-      err.name = 'BangerAssertionError';
+      err.name = 'ShotgunAssertionError';
       throw err;
     }
   },
 
   skip(reason: string): never {
     const err = new Error(reason);
-    err.name = 'BangerSkipError';
+    err.name = 'ShotgunSkipError';
     throw err;
   },
 
@@ -214,13 +214,13 @@ async function executeScript(scriptFile: string): Promise<ScriptRunResult> {
     proc.on('close', (code) => {
       if (code !== 0) {
         // Check if it's a skip signal
-        const skipMatch = stderr.match(/BangerSkipError: (.+)/);
+        const skipMatch = stderr.match(/ShotgunSkipError: (.+)/);
         if (skipMatch) {
           resolve({ passed: true, skipped: true, skipReason: skipMatch[1].trim(), logs });
           return;
         }
         // Check if it's an assertion error
-        const assertMatch = stderr.match(/BangerAssertionError: (.+)/);
+        const assertMatch = stderr.match(/ShotgunAssertionError: (.+)/);
         const errorMsg = assertMatch
           ? assertMatch[1]
           : stderr.trim() || `Script exited with code ${code}`;
@@ -235,7 +235,7 @@ async function executeScript(scriptFile: string): Promise<ScriptRunResult> {
 
       try {
         const output = JSON.parse(lastLine) as {
-          request?: Partial<BangerRequest>;
+          request?: Partial<ShotgunRequest>;
           vars?: Record<string, unknown>;
           logs?: string[];
         };

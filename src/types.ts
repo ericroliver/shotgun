@@ -1,6 +1,6 @@
 /**
  * src/types.ts
- * Shared types for the banger API testing engine.
+ * Shared types for the shotgun API testing engine.
  */
 
 // ---------------------------------------------------------------------------
@@ -74,7 +74,7 @@ export interface CollectionDefinition {
 // Runtime context — injected into pre/post scripts
 // ---------------------------------------------------------------------------
 
-export interface BangerRequest {
+export interface ShotgunRequest {
   method: string;
   url: string;
   path: string;
@@ -83,7 +83,7 @@ export interface BangerRequest {
   body?: unknown;
 }
 
-export interface BangerResponse {
+export interface ShotgunResponse {
   status: number;
   headers: Record<string, string>;
   body: unknown;
@@ -92,11 +92,11 @@ export interface BangerResponse {
 }
 
 export type HttpMethod = {
-  get(path: string, opts?: RequestOpts): Promise<BangerResponse>;
-  post(path: string, body: unknown, opts?: RequestOpts): Promise<BangerResponse>;
-  put(path: string, body: unknown, opts?: RequestOpts): Promise<BangerResponse>;
-  patch(path: string, body: unknown, opts?: RequestOpts): Promise<BangerResponse>;
-  delete(path: string, opts?: RequestOpts): Promise<BangerResponse>;
+  get(path: string, opts?: RequestOpts): Promise<ShotgunResponse>;
+  post(path: string, body: unknown, opts?: RequestOpts): Promise<ShotgunResponse>;
+  put(path: string, body: unknown, opts?: RequestOpts): Promise<ShotgunResponse>;
+  patch(path: string, body: unknown, opts?: RequestOpts): Promise<ShotgunResponse>;
+  delete(path: string, opts?: RequestOpts): Promise<ShotgunResponse>;
 };
 
 export interface RequestOpts {
@@ -105,16 +105,16 @@ export interface RequestOpts {
   timeout?: number;
 }
 
-export interface BangerContext {
+export interface ShotgunContext {
   /** Merged env vars: global config + .env file + test-level overrides */
   env: EnvVars;
   /** Mutable cross-test variable store — persists for the entire run */
   vars: Record<string, unknown>;
   /** Current request — mutable in pre-script */
-  request: BangerRequest;
+  request: ShotgunRequest;
   /** Current response — available in post-script */
-  response: BangerResponse;
-  /** Throws BangerAssertionError if condition is false */
+  response: ShotgunResponse;
+  /** Throws ShotgunAssertionError if condition is false */
   assert(condition: boolean, message: string): void;
   /** Marks the test as skipped with the given reason (terminates pre-script immediately) */
   skip(reason: string): never;
@@ -179,10 +179,10 @@ export interface RunSummary {
 }
 
 // ---------------------------------------------------------------------------
-// Config file schema (banger.config.yaml)
+// Config file schema (shotgun.config.yaml)
 // ---------------------------------------------------------------------------
 
-export interface BangerConfig {
+export interface ShotgunConfig {
   version: number;
   defaults?: {
     env?: string;
@@ -209,23 +209,23 @@ export interface BangerConfig {
 // Errors
 // ---------------------------------------------------------------------------
 
-export class BangerAssertionError extends Error {
+export class ShotgunAssertionError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'BangerAssertionError';
+    this.name = 'ShotgunAssertionError';
   }
 }
 
-export class BangerSkipError extends Error {
+export class ShotgunSkipError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'BangerSkipError';
+    this.name = 'ShotgunSkipError';
   }
 }
 
-export class BangerConfigError extends Error {
+export class ShotgunConfigError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'BangerConfigError';
+    this.name = 'ShotgunConfigError';
   }
 }

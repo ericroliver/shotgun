@@ -1,6 +1,6 @@
 {
   "name": "${AGENT_NAME}",
-  "description": "Created by banger test suite",
+  "description": "Created by shotgun test suite",
   "config": {
     "model": "gpt-4o",
     "temperature": 0.7,
