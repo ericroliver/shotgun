@@ -80,32 +80,38 @@ export async function runTests(opts: RunOptions): Promise<RunSummary> {
     // Merge collection-level env overrides (none in this design, but vars is shared)
     // Run collection setup hook
     if (definition.setup) {
+      let setupError: string | null = null;
       try {
         const dummyRequest = makeDummyRequest(baseUrl);
         const result = await runScript(definition.setup, {
           env, vars, request: dummyRequest, scriptsDir,
         });
-        applyVarMutations(vars, result.requestMutations);
+        applyVarMutations(vars, result.varMutations);
         if (!result.passed) {
-          console.error(`Collection setup failed: ${result.error}`);
-          // Skip all tests in collection
-          for (const file of testFiles) {
-            const test = loadTestFile(file, env);
-            const skipped: TestResult = {
-              name: test.name,
-              file,
-              status: 'skipped',
-              durationMs: 0,
-              assertions: {},
-              error: `Skipped — collection setup failed: ${result.error}`,
-            };
-            logger.recordTest(skipped, collectionName);
-            printTestResult(skipped);
-          }
-          continue;
+          setupError = result.error ?? 'collection setup failed';
         }
       } catch (err) {
-        console.error(`Collection setup threw: ${err}`);
+        setupError = String(err);
+      }
+
+      if (setupError !== null) {
+        console.error(`Collection setup failed: ${setupError}`);
+        // Fail all tests in collection — setup failure is not a skip, it's an error
+        for (const file of testFiles) {
+          const test = loadTestFile(file, env);
+          const failed: TestResult = {
+            name: test.name,
+            file,
+            status: 'failed',
+            durationMs: 0,
+            assertions: {},
+            error: `Collection setup failed: ${setupError}`,
+          };
+          logger.recordTest(failed, collectionName);
+          printTestStart(test.name, test.request.method, test.request.path);
+          printTestResult(failed);
+        }
+        continue;
       }
     }
 
@@ -205,6 +211,18 @@ async function runSingleTest(
         scriptsDir: opts.scriptsDir,
       });
       scriptOutput.push(...preResult.logs);
+      // ctx.skip() was called — record as skipped, do not run the request
+      if (preResult.skipped) {
+        return {
+          name: test.name,
+          file,
+          status: 'skipped',
+          durationMs: Date.now() - startMs,
+          assertions: {},
+          error: preResult.skipReason,
+          scriptOutput: scriptOutput.length ? scriptOutput : undefined,
+        };
+      }
       if (!preResult.passed) {
         return makeFailedResult(test.name, file, startMs, {}, `Pre-script failed: ${preResult.error}`, scriptOutput);
       }
@@ -213,7 +231,7 @@ async function runSingleTest(
         request = mergeRequest(request, preResult.requestMutations, opts.baseUrl);
       }
       // Apply var mutations
-      applyVarMutations(opts.vars, preResult.requestMutations);
+      applyVarMutations(opts.vars, preResult.varMutations);
     } catch (err) {
       return makeFailedResult(test.name, file, startMs, {}, `Pre-script threw: ${err}`, scriptOutput);
     }
@@ -257,7 +275,7 @@ async function runSingleTest(
         scriptsDir: opts.scriptsDir,
       });
       scriptOutput.push(...postResult.logs);
-      applyVarMutations(opts.vars, postResult.requestMutations);
+      applyVarMutations(opts.vars, postResult.varMutations);
       assertions.postScript = postResult.passed;
       if (!postResult.passed) {
         assertions.postScriptError = postResult.error;
@@ -312,11 +330,11 @@ function mergeRequest(base: BangerRequest, mutations: Partial<BangerRequest>, ba
   return merged;
 }
 
-function applyVarMutations(vars: Record<string, unknown>, mutations?: Partial<BangerRequest>): void {
-  // vars are mutated directly by the script via ctx.vars reference
-  // This is a no-op placeholder — the shared vars object is mutated in-place inside the script context
-  void vars;
-  void mutations;
+function applyVarMutations(vars: Record<string, unknown>, varMutations?: Record<string, unknown>): void {
+  if (!varMutations) return;
+  for (const [key, value] of Object.entries(varMutations)) {
+    vars[key] = value;
+  }
 }
 
 function makeDummyRequest(baseUrl: string): BangerRequest {

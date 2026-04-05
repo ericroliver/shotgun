@@ -20,10 +20,15 @@ import { BangerAssertionError } from './types.js';
 
 export interface ScriptRunResult {
   passed: boolean;
+  /** When true the test should be recorded as skipped, not failed */
+  skipped?: boolean;
+  skipReason?: string;
   error?: string;
   logs: string[];
   /** Mutations applied to the request (from pre-script) */
   requestMutations?: Partial<BangerRequest>;
+  /** Mutations applied to shared vars (from any script) */
+  varMutations?: Record<string, unknown>;
 }
 
 export type SharedVars = Record<string, unknown>;
@@ -109,6 +114,12 @@ const ctx = {
       err.name = 'BangerAssertionError';
       throw err;
     }
+  },
+
+  skip(reason: string): never {
+    const err = new Error(reason);
+    err.name = 'BangerSkipError';
+    throw err;
   },
 
   log(message: string): void {
@@ -202,6 +213,12 @@ async function executeScript(scriptFile: string): Promise<ScriptRunResult> {
 
     proc.on('close', (code) => {
       if (code !== 0) {
+        // Check if it's a skip signal
+        const skipMatch = stderr.match(/BangerSkipError: (.+)/);
+        if (skipMatch) {
+          resolve({ passed: true, skipped: true, skipReason: skipMatch[1].trim(), logs });
+          return;
+        }
         // Check if it's an assertion error
         const assertMatch = stderr.match(/BangerAssertionError: (.+)/);
         const errorMsg = assertMatch
@@ -226,6 +243,7 @@ async function executeScript(scriptFile: string): Promise<ScriptRunResult> {
           passed: true,
           logs: [...logs, ...(output.logs ?? [])],
           requestMutations: output.request,
+          varMutations: output.vars,
         });
       } catch {
         resolve({ passed: true, logs });

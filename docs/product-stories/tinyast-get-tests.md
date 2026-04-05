@@ -1,15 +1,36 @@
-# TinyAST GET Test Suite — Plan
+# Enigma (formerly TinyAST) GET Test Suite — Plan
 
-> Status: Ready for implementation
+> Status: In progress — system collection complete ✅
 > Target dev URL: `http://m1x.local:3080`
-> Spec: [`local-dev-test-repo/tinyast-openapi-spec.json`](../../local-dev-test-repo/tinyast-openapi-spec.json)
+> Spec (latest): [`local-dev-test-repo/specs/enigma-api.json`](../../local-dev-test-repo/specs/enigma-api.json)
+> Summary: [`local-dev-test-repo/specs/enigma-api-summary.txt`](../../local-dev-test-repo/specs/enigma-api-summary.txt)
+
+> **Note:** The API is being renamed from TinyAST → Enigma. The two names refer to the same API.
+> All new test artifacts use the Enigma name in comments/descriptions; the endpoints are unchanged.
+
+---
+
+## Spec Delta (v2 — Enigma)
+
+The following GET endpoints are **new** in the Enigma spec vs the original TinyAST spec:
+
+| New Endpoint | Collection | Notes |
+|---|---|---|
+| `GET /api/agents/catalog` | agents | List agent catalog definitions |
+| `GET /api/agents/catalog/{name}` | agents | Get a specific catalog entry by name |
+| `GET /api/deps/order/{filePath}` | deps | Dependency processing order for a file |
+| `GET /api/workspace/current` | workspace | Get the currently loaded workspace |
+| `GET /api/workspace/list` | workspace | List all available workspaces |
+
+**Also refined from system collection testing:**
+- Scripts now use `ctx.assert(...)` instead of bare `assert(...)` — apply consistently to all new tests.
 
 ---
 
 ## Overview
 
-Build a complete banger test suite covering every GET endpoint in the TinyAST OpenAPI spec.
-Total: **107 GET endpoints** across **14 collections**, organized under `local-dev-test-repo/`.
+Build a complete banger test suite covering every GET endpoint in the Enigma API spec.
+Total: **112 GET endpoints** across **14 collections**, organized under `local-dev-test-repo/`.
 
 Auth is currently not required by the API but will be bearer token in the future. The auth
 plumbing is wired now (env var + header injection) so no rework is needed when auth is turned on.
@@ -18,24 +39,24 @@ plumbing is wired now (env var + header injection) so no rework is needed when a
 
 ## Collection Breakdown
 
-| Collection | Dir | # Tests | Notes |
-|------------|-----|---------|-------|
-| agents | `tests/collections/agents/` | 8 | Needs `AGENT_NAME` env var |
-| build | `tests/collections/build/` | 4 | SessionId chained from list |
-| code | `tests/collections/code/` | 27 | Needs `FILE_PATH`, `CLASS_NAME`, etc. |
-| comms | `tests/collections/comms/` | 7 | ChannelId chained from list |
-| db | `tests/collections/db/` | 3 | Needs `DB_SCHEMA`, `DB_OBJECT_NAME` |
-| deps | `tests/collections/deps/` | 8 | Needs `FILE_PATH` |
-| diff | `tests/collections/diff/` | 3 | `FILE_PATH` for diff-by-file |
-| fs | `tests/collections/fs/` | 4 | Needs `FILE_PATH`, `DIR_PATH` |
-| graph | `tests/collections/graph/` | 4 | NodePath/LinkId chained from list |
-| merge | `tests/collections/merge/` | 12 | MergeObjectId chained; needs `PROC_NAME` |
-| sensors | `tests/collections/sensors/` | 4 | SensorName chained from list |
-| system | `tests/collections/system/` | 4 | No params — ideal smoke targets |
-| vc | `tests/collections/vc/` | 11 | Heavy env vars: workspace/checkpoint/task IDs |
-| workspace | `tests/collections/workspace/` | 7 | No path params — clean |
+| Collection | Dir | # Tests | Status | Notes |
+|------------|-----|---------|--------|-------|
+| system | `tests/collections/system/` | 4 | ✅ Done | No params — smoke targets |
+| workspace | `tests/collections/workspace/` | 9 | 🔜 Next | 2 new endpoints added |
+| agents | `tests/collections/agents/` | 10 | ⬜ | 2 new catalog endpoints added |
+| build | `tests/collections/build/` | 4 | ⬜ | SessionId chained from list |
+| code | `tests/collections/code/` | 27 | ⬜ | Needs `FILE_PATH`, `CLASS_NAME`, etc. |
+| comms | `tests/collections/comms/` | 7 | ⬜ | ChannelId chained from list |
+| db | `tests/collections/db/` | 3 | ⬜ | Needs `DB_SCHEMA`, `DB_OBJECT_NAME` |
+| deps | `tests/collections/deps/` | 9 | ⬜ | 1 new endpoint; needs `FILE_PATH` |
+| diff | `tests/collections/diff/` | 3 | ⬜ | `FILE_PATH` for diff-by-file |
+| fs | `tests/collections/fs/` | 4 | ⬜ | Needs `FILE_PATH`, `DIR_PATH` |
+| graph | `tests/collections/graph/` | 4 | ⬜ | NodePath/LinkId chained from list |
+| merge | `tests/collections/merge/` | 12 | ⬜ | MergeObjectId chained; needs `PROC_NAME` |
+| sensors | `tests/collections/sensors/` | 4 | ⬜ | SensorName chained from list |
+| vc | `tests/collections/vc/` | 11 | ⬜ | Heavy env vars: workspace/checkpoint/task IDs |
 
-**Total: 107 test files**
+**Total: 112 test files**
 
 ---
 
@@ -51,28 +72,32 @@ plumbing is wired now (env var + header injection) so no rework is needed when a
 
 > Note: `GET /api/system/mock/stream` is an SSE endpoint — excluded from GET suite, needs dedicated streaming test.
 
-### workspace (7)
-| Endpoint | Test File | Smoke? |
-|----------|-----------|--------|
-| GET /api/workspace/status | `get-workspace-status.yaml` | ✅ |
-| GET /api/workspace/meta | `get-workspace-meta.yaml` | ✅ |
-| GET /api/workspace/memory | `get-workspace-memory.yaml` | — |
-| GET /api/workspace/memory/pressure | `get-workspace-memory-pressure.yaml` | — |
-| GET /api/workspace/order | `get-workspace-order.yaml` | — |
-| GET /api/workspace/order/next | `get-workspace-order-next.yaml` | — |
-| GET /api/workspace/outline | `get-workspace-outline.yaml` | ✅ |
+### workspace (9) — Next batch
+| Endpoint | Test File | Smoke? | Notes |
+|----------|-----------|--------|-------|
+| GET /api/workspace/status | `get-status.yaml` | ✅ | |
+| GET /api/workspace/meta | `get-meta.yaml` | ✅ | |
+| GET /api/workspace/outline | `get-outline.yaml` | ✅ | |
+| GET /api/workspace/current | `get-current.yaml` | ✅ | NEW in Enigma spec |
+| GET /api/workspace/list | `get-list.yaml` | ✅ | NEW in Enigma spec |
+| GET /api/workspace/memory | `get-memory.yaml` | — | |
+| GET /api/workspace/memory/pressure | `get-memory-pressure.yaml` | — | |
+| GET /api/workspace/order | `get-order.yaml` | — | |
+| GET /api/workspace/order/next | `get-order-next.yaml` | — | |
 
-### agents (8)
-| Endpoint | Test File | Path Param Strategy |
-|----------|-----------|---------------------|
-| GET /api/agents | `get-agents.yaml` | none |
-| GET /api/agents/{name} | `get-agent-by-name.yaml` | `ctx.vars.agentName` from list OR `AGENT_NAME` env |
-| GET /api/agents/{name}/config | `get-agent-config.yaml` | same |
-| GET /api/agents/{name}/info | `get-agent-info.yaml` | same |
-| GET /api/agents/{name}/logs | `get-agent-logs.yaml` | same |
-| GET /api/agents/{name}/logs/{logName} | `get-agent-log-by-name.yaml` | log chained from logs list |
-| GET /api/agents/{name}/output | `get-agent-output.yaml` | same agent name |
-| GET /api/agents/{name}/stream | `get-agent-stream.yaml` | SSE — short poll, expect 200 |
+### agents (10) — includes 2 new Enigma endpoints
+| Endpoint | Test File | Path Param Strategy | Notes |
+|----------|-----------|---------------------|-------|
+| GET /api/agents | `get-agents.yaml` | none | stashes first name into `ctx.vars` |
+| GET /api/agents/catalog | `get-agents-catalog.yaml` | none | NEW in Enigma |
+| GET /api/agents/catalog/{name} | `get-agents-catalog-entry.yaml` | chained from catalog list OR `CATALOG_AGENT_NAME` env | NEW in Enigma |
+| GET /api/agents/{name} | `get-agent-by-name.yaml` | `ctx.vars.agentName` or `AGENT_NAME` env | |
+| GET /api/agents/{name}/config | `get-agent-config.yaml` | same | |
+| GET /api/agents/{name}/info | `get-agent-info.yaml` | same | |
+| GET /api/agents/{name}/logs | `get-agent-logs.yaml` | same | stashes first logName |
+| GET /api/agents/{name}/logs/{logName} | `get-agent-log-by-name.yaml` | chained from logs list | |
+| GET /api/agents/{name}/output | `get-agent-output.yaml` | same agent name | |
+| GET /api/agents/{name}/stream | `get-agent-stream.yaml` | same agent name | SSE — expect 200, skip if no agent |
 
 ### build (4)
 | Endpoint | Test File | Path Param Strategy |
@@ -140,17 +165,18 @@ Needs `ENCODED_KEY` (chained from notes list):
 | GET /api/db/objects | `get-db-objects.yaml` | none |
 | GET /api/db/objects/{schema}/{name}/ddl | `get-db-object-ddl.yaml` | `DB_SCHEMA` + `DB_OBJECT_NAME` env vars |
 
-### deps (8)
-| Endpoint | Test File | Path Param Strategy |
-|----------|-----------|---------------------|
-| GET /api/deps/status | `get-deps-status.yaml` | none |
-| GET /api/deps/hotspots | `get-deps-hotspots.yaml` | none |
-| GET /api/deps/links | `get-deps-links.yaml` | none (stashes first link id) |
-| GET /api/deps/links/{id} | `get-deps-link-by-id.yaml` | chained |
-| GET /api/deps/links/file/{filePath} | `get-deps-links-for-file.yaml` | `FILE_PATH` env var |
-| GET /api/deps/files/{filePath} | `get-deps-for-file.yaml` | `FILE_PATH` env var |
-| GET /api/deps/impact/{filePath} | `get-deps-impact.yaml` | `FILE_PATH` env var |
-| GET /api/deps/methods/{filePath} | `get-deps-methods.yaml` | `FILE_PATH` env var |
+### deps (9) — includes 1 new Enigma endpoint
+| Endpoint | Test File | Path Param Strategy | Notes |
+|----------|-----------|---------------------|-------|
+| GET /api/deps/status | `get-status.yaml` | none | |
+| GET /api/deps/hotspots | `get-hotspots.yaml` | none | |
+| GET /api/deps/links | `get-links.yaml` | none — stashes first link id | |
+| GET /api/deps/links/{id} | `get-link-by-id.yaml` | chained from links list | |
+| GET /api/deps/links/file/{filePath} | `get-links-for-file.yaml` | `FILE_PATH` env var | |
+| GET /api/deps/files/{filePath} | `get-files.yaml` | `FILE_PATH` env var | |
+| GET /api/deps/impact/{filePath} | `get-impact.yaml` | `FILE_PATH` env var | |
+| GET /api/deps/methods/{filePath} | `get-methods.yaml` | `FILE_PATH` env var | |
+| GET /api/deps/order/{filePath} | `get-order.yaml` | `FILE_PATH` env var | NEW in Enigma |
 
 ### diff (3)
 | Endpoint | Test File | Path Param Strategy |
