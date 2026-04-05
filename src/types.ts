@@ -116,6 +116,8 @@ export interface BangerContext {
   response: BangerResponse;
   /** Throws BangerAssertionError if condition is false */
   assert(condition: boolean, message: string): void;
+  /** Marks the test as skipped with the given reason (terminates pre-script immediately) */
+  skip(reason: string): never;
   /** Write a message to stdout and to the per-test run log */
   log(message: string): void;
   /** HTTP helpers for setup/teardown/chaining (does NOT use curl) */
@@ -211,6 +213,13 @@ export class BangerAssertionError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'BangerAssertionError';
+  }
+}
+
+export class BangerSkipError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'BangerSkipError';
   }
 }
 

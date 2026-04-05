@@ -155,6 +155,17 @@ export async function writeSnapshot(
     ...(test.response?.ignore_fields ?? []),
   ];
   const normalized = await normalizeJson(raw, ignoreFields);
+
+  // Refuse to write a blank baseline — this happens when the API is unreachable
+  // and the raw response body is empty. Writing blank would silently corrupt the
+  // snapshot file and cause every subsequent run to fail with a confusing diff.
+  if (!normalized.trim()) {
+    if (process.env.BANGER_DEBUG) {
+      console.warn(`[asserter] writeSnapshot skipped for "${path}" — normalized content is empty (API may be unreachable)`);
+    }
+    return;
+  }
+
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, normalized + '\n', 'utf8');
 }

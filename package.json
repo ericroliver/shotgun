@@ -27,9 +27,9 @@
     "test:local": "tsx src/index.ts run --env local",
     "test:qa": "tsx src/index.ts run --env QA",
     "test:qa2": "tsx src/index.ts run --env QA-2",
-    "pkg:macos": "pkg dist/index.js --target node20-macos-arm64 --output bin/banger-macos-arm64",
-    "pkg:linux": "pkg dist/index.js --target node20-linux-x64 --output bin/banger-linux-x64",
-    "pkg:all": "npm run build && npm run pkg:macos && npm run pkg:linux"
+    "pkg:macos": "bun build --compile --target=bun-darwin-arm64 src/index.ts --outfile bin/banger-macos-arm64 && cp bin/banger-macos-arm64 bin/banger",
+    "pkg:linux": "bun build --compile --target=bun-linux-x64 src/index.ts --outfile bin/banger-linux-x64",
+    "pkg:all": "npm run pkg:macos && npm run pkg:linux"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
@@ -40,7 +40,6 @@
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.12.0",
-    "pkg": "^5.8.1",
     "typescript": "^5.4.0"
   },
   "engines": {
