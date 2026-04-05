@@ -5,7 +5,7 @@
  */
 
 import { spawn } from 'node:child_process';
-import { writeFileSync, unlinkSync, existsSync } from 'node:fs';
+import { unlinkSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
@@ -18,6 +18,13 @@ export interface ExecutorOptions {
 
 /**
  * Builds a BangerRequest from test definition + env, then executes it via curl.
+ *
+ * Performance notes:
+ *  - Headers are passed as repeated -H args (no temp file write/unlink).
+ *  - Request body is piped to curl's stdin (no temp file write/unlink).
+ *  - Only one temp file remains: the response body output file, which is
+ *    necessary to cleanly separate the response body from the header dump
+ *    that curl writes to stdout via -D -.
  */
 export async function executeRequest(
   req: BangerRequest,
@@ -27,9 +34,8 @@ export async function executeRequest(
   const timeout = opts.timeout ?? parseInt(env.TIMEOUT ?? '10', 10);
   const tmpId = randomBytes(6).toString('hex');
   const bodyOutFile = join(tmpdir(), `banger-body-${tmpId}.tmp`);
-  const headersFile = join(tmpdir(), `banger-headers-${tmpId}.tmp`);
 
-  // Build headers temp file
+  // Build headers — passed directly as repeated -H args, no temp file.
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     Accept: 'application/json',
@@ -41,45 +47,39 @@ export async function executeRequest(
     headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
   }
 
-  // Redact auth in logs
-  const safeHeaders = { ...headers };
-  if (safeHeaders['Authorization']) safeHeaders['Authorization'] = 'Bearer ***';
-
-  // Write headers to temp file (one per line)
-  const headerLines = Object.entries(headers)
-    .map(([k, v]) => `${k}: ${v}`)
-    .join('\n');
-  writeFileSync(headersFile, headerLines, 'utf8');
-
   // Build query string
   const url = buildUrl(req, env);
 
-  // Build curl args
+  // Build curl args — one -H per header, no @file indirection.
   const curlArgs: string[] = [
     '-s',                              // silent
     '--max-time', String(timeout),
     '-X', req.method,
-    '-H', '@' + headersFile,
+  ];
+
+  for (const [k, v] of Object.entries(headers)) {
+    curlArgs.push('-H', `${k}: ${v}`);
+  }
+
+  curlArgs.push(
     '-o', bodyOutFile,
-    '-D', '-',                         // dump headers to stdout
+    '-D', '-',                         // dump response headers to stdout
     '-w', '\n__BANGER_STATUS__%{http_code}__BANGER_TIME__%{time_total}',
     ...(opts.followRedirects !== false ? ['-L'] : []),
     url,
-  ];
+  );
 
-  // Request body
-  let bodyTmp: string | null = null;
+  // Request body — piped to stdin, no temp file.
+  let requestBodyStr: string | null = null;
   if (req.body !== undefined && req.body !== null) {
-    bodyTmp = join(tmpdir(), `banger-reqbody-${tmpId}.tmp`);
-    const bodyStr = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
-    writeFileSync(bodyTmp, bodyStr, 'utf8');
-    curlArgs.push('--data-binary', `@${bodyTmp}`);
+    requestBodyStr = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+    curlArgs.push('--data-binary', '@-');
   }
 
   const startTime = Date.now();
 
   try {
-    const { stdout, stderr } = await spawnPromise('curl', curlArgs);
+    const { stdout, stderr } = await spawnPromise('curl', curlArgs, requestBodyStr);
 
     const duration = Date.now() - startTime;
 
@@ -90,10 +90,10 @@ export async function executeRequest(
     // Parse response headers from stdout (everything before blank line)
     const responseHeaders = parseResponseHeaders(stdout);
 
-    // Read body from file
+    // Read response body from temp file
     let raw = '';
     if (existsSync(bodyOutFile)) {
-      raw = (await import('node:fs')).readFileSync(bodyOutFile, 'utf8');
+      raw = readFileSync(bodyOutFile, 'utf8');
     }
 
     let body: unknown = raw;
@@ -118,8 +118,6 @@ export async function executeRequest(
     };
   } finally {
     cleanup(bodyOutFile);
-    cleanup(headersFile);
-    if (bodyTmp) cleanup(bodyTmp);
   }
 }
 
@@ -147,7 +145,17 @@ function parseResponseHeaders(stdout: string): Record<string, string> {
   return headers;
 }
 
-function spawnPromise(cmd: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
+/**
+ * Spawn a process and collect stdout/stderr.
+ * If `stdinData` is provided it is written to the process's stdin then the
+ * stream is closed — this is used to pipe request bodies to curl without
+ * creating a temporary file.
+ */
+function spawnPromise(
+  cmd: string,
+  args: string[],
+  stdinData: string | null = null,
+): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     const proc = spawn(cmd, args);
     let stdout = '';
@@ -156,6 +164,11 @@ function spawnPromise(cmd: string, args: string[]): Promise<{ stdout: string; st
     proc.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
     proc.on('error', reject);
     proc.on('close', () => resolve({ stdout, stderr }));
+
+    if (stdinData !== null) {
+      proc.stdin.write(stdinData, 'utf8');
+      proc.stdin.end();
+    }
   });
 }
 
