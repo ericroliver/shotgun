@@ -11,7 +11,7 @@ import { runAssertions, assertionsAllPassed, writeSnapshot } from './asserter.js
 import { runScript } from './scripter.js';
 import { RunLogger } from './logger.js';
 import { printCollectionHeader, printTestStart, printTestResult, printSummary } from './reporter.js';
-import type { BangerRequest, BangerResponse, TestResult, EnvVars, RunSummary, BangerConfig } from './types.js';
+import type { ShotgunRequest, ShotgunResponse, TestResult, EnvVars, RunSummary, ShotgunConfig } from './types.js';
 
 export interface RunOptions {
   env?: string;
@@ -176,7 +176,7 @@ interface SingleTestOpts {
   env: EnvVars;
   vars: Record<string, unknown>;
   baseUrl: string;
-  config: BangerConfig;
+  config: ShotgunConfig;
   scriptsDir: string;
   cwd: string;
   collectionName?: string;
@@ -192,7 +192,7 @@ async function runSingleTest(
   const startMs = Date.now();
 
   // Build initial request
-  let request: BangerRequest = {
+  let request: ShotgunRequest = {
     method: test.request.method,
     path: test.request.path,
     url: buildUrl(opts.baseUrl, test.request.path),
@@ -238,7 +238,7 @@ async function runSingleTest(
   }
 
   // Execute HTTP request
-  let response: BangerResponse;
+  let response: ShotgunResponse;
   try {
     response = await executeRequest(request, opts.env, {
       timeout: parseInt(opts.env.TIMEOUT ?? '10', 10),
@@ -321,7 +321,7 @@ function normalizeParams(params: Record<string, string | number | boolean>): Rec
   return Object.fromEntries(Object.entries(params).map(([k, v]) => [k, String(v)]));
 }
 
-function mergeRequest(base: BangerRequest, mutations: Partial<BangerRequest>, baseUrl: string): BangerRequest {
+function mergeRequest(base: ShotgunRequest, mutations: Partial<ShotgunRequest>, baseUrl: string): ShotgunRequest {
   const merged = { ...base, ...mutations };
   // Re-derive URL if path changed
   if (mutations.path && mutations.path !== base.path) {
@@ -337,7 +337,7 @@ function applyVarMutations(vars: Record<string, unknown>, varMutations?: Record<
   }
 }
 
-function makeDummyRequest(baseUrl: string): BangerRequest {
+function makeDummyRequest(baseUrl: string): ShotgunRequest {
   return {
     method: 'GET',
     path: '/',

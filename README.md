@@ -1,8 +1,8 @@
-# banger
+# shotgun
 
 > Shell-first API testing with YAML test definitions, TypeScript scripting, and snapshot diffing.
 
-Banger executes HTTP requests via `curl`, validates responses with `jq`, and diffs snapshots with `diff`. TypeScript handles test orchestration, pre/post hooks, and run logging. No HTTP client libraries. No heavy test frameworks.
+Shotgun executes HTTP requests via `curl`, validates responses with `jq`, and diffs snapshots with `diff`. TypeScript handles test orchestration, pre/post hooks, and run logging. No HTTP client libraries. No heavy test frameworks.
 
 ---
 
@@ -11,29 +11,29 @@ Banger executes HTTP requests via `curl`, validates responses with `jq`, and dif
 ### Option 1 — npm (recommended)
 
 ```bash
-npm install -g banger
-banger --version
+npm install -g shotgun
+shotgun --version
 ```
 
 ### Option 2 — npx (zero install, great for CI)
 
 ```bash
-npx banger --version
-npx banger run --env QA
+npx shotgun --version
+npx shotgun run --env QA
 ```
 
 ### Option 3 — Standalone binary (no Node.js required)
 
-Download a prebuilt binary from the [Releases page](https://github.com/your-org/banger/releases):
+Download a prebuilt binary from the [Releases page](https://github.com/your-org/shotgun/releases):
 
 ```bash
 # macOS (Apple Silicon)
-curl -L https://github.com/your-org/banger/releases/latest/download/banger-macos-arm64 \
-  -o /usr/local/bin/banger && chmod +x /usr/local/bin/banger
+curl -L https://github.com/your-org/shotgun/releases/latest/download/shotgun-macos-arm64 \
+  -o /usr/local/bin/shotgun && chmod +x /usr/local/bin/shotgun
 
 # Linux x64
-curl -L https://github.com/your-org/banger/releases/latest/download/banger-linux-x64 \
-  -o /usr/local/bin/banger && chmod +x /usr/local/bin/banger
+curl -L https://github.com/your-org/shotgun/releases/latest/download/shotgun-linux-x64 \
+  -o /usr/local/bin/shotgun && chmod +x /usr/local/bin/shotgun
 ```
 
 ---
@@ -54,9 +54,9 @@ curl -L https://github.com/your-org/banger/releases/latest/download/banger-linux
 
 ## How It Works
 
-1. You create a **test repo** — a directory with `banger.config.yaml`, `envs/`, and `tests/collections/`
+1. You create a **test repo** — a directory with `shotgun.config.yaml`, `envs/`, and `tests/collections/`
 2. Each test is a YAML file describing a request, expected status, optional shape assertions, and optional TypeScript pre/post scripts
-3. `banger run` discovers collections, fires requests via `curl`, and asserts the results
+3. `shotgun run` discovers collections, fires requests via `curl`, and asserts the results
 4. First run captures snapshot baselines in `expected/` (committed to git)
 5. Subsequent runs diff actual responses against baselines — any change is a failure
 
@@ -70,7 +70,7 @@ curl -L https://github.com/your-org/banger/releases/latest/download/banger-linux
 mkdir my-api-tests && cd my-api-tests
 ```
 
-### 2. Create `banger.config.yaml`
+### 2. Create `shotgun.config.yaml`
 
 ```yaml
 version: 1
@@ -124,10 +124,10 @@ EOF
 
 ```bash
 # First: capture the expected response as a baseline
-banger snapshot --env local
+shotgun snapshot --env local
 
 # Then run — diffs against the baseline
-banger run --env local
+shotgun run --env local
 ```
 
 ---
@@ -136,7 +136,7 @@ banger run --env local
 
 ```
 my-api-tests/
-├── banger.config.yaml          # Global config
+├── shotgun.config.yaml          # Global config
 │
 ├── envs/                       # One file per environment
 │   ├── local.env.example       # Committed template
@@ -176,9 +176,9 @@ my-api-tests/
 Select an environment with `--env`:
 
 ```bash
-banger run --env QA
-banger run --env QA-2
-banger run              # defaults to "local"
+shotgun run --env QA
+shotgun run --env QA-2
+shotgun run              # defaults to "local"
 ```
 
 Variables are available in YAML as `${VAR_NAME}` interpolation and in scripts as `ctx.env.VAR_NAME`.
@@ -209,7 +209,7 @@ env:
 
 # TypeScript — runs before curl; can mutate ctx.request
 pre: |
-  ctx.request.headers['X-Request-Source'] = 'banger';
+  ctx.request.headers['X-Request-Source'] = 'shotgun';
 
 request:
   method: GET
@@ -257,7 +257,7 @@ order:
 
 # Runs once before first test — ctx.vars available to all tests
 setup: |
-  ctx.vars.testAgentName = `banger-${Date.now()}`;
+  ctx.vars.testAgentName = `shotgun-${Date.now()}`;
   ctx.log(`Test agent: ${ctx.vars.testAgentName}`);
 
 # Runs once after last test — even if tests fail
@@ -284,7 +284,7 @@ tags:
 ```
 
 ```bash
-banger run --suite smoke
+shotgun run --suite smoke
 ```
 
 ---
@@ -295,13 +295,13 @@ Snapshots compare the actual response body against a saved baseline file in `exp
 
 ```bash
 # Capture baselines — writes expected/ files (commit these)
-banger snapshot --env QA
+shotgun snapshot --env QA
 
 # Update a single test's baseline
-banger snapshot --file tests/collections/agents/get-agents.yaml
+shotgun snapshot --file tests/collections/agents/get-agents.yaml
 
 # Normal run — diffs against committed baselines
-banger run --env QA
+shotgun run --env QA
 ```
 
 On first run with `snapshot: true` and no baseline, the test is marked **needs_baseline** rather than failing.
@@ -319,16 +319,16 @@ runs/20260328_200532/
 ```
 
 ```bash
-banger report                       # Latest run
-banger report --run 20260328_200532 # Specific run
-banger report --format json         # JSON output
+shotgun report                       # Latest run
+shotgun report --run 20260328_200532 # Specific run
+shotgun report --format json         # JSON output
 ```
 
 ---
 
 ## Pre/Post Script Context (`ctx`)
 
-Scripts are inline TypeScript, executed via `tsx`. They receive a `BangerContext` object:
+Scripts are inline TypeScript, executed via `tsx`. They receive a `ShotgunContext` object:
 
 ```typescript
 ctx.env                  // env vars — read only
@@ -356,28 +356,28 @@ Scripts support `async/await`. Auth tokens are automatically redacted in all log
 ## CLI Reference
 
 ```
-banger run                            Run all tests (default env)
-banger run --env <name>               Select environment (e.g. QA, staging)
-banger run --collection <name>        Run one collection
-banger run --tags <tag1,tag2>         Filter by tags (comma-separated)
-banger run --suite <name>             Run a named suite
-banger run --file <path>              Run a single test file
-banger run --format json              JSON output (for CI pipelines)
-banger run --format tap               TAP output
+shotgun run                            Run all tests (default env)
+shotgun run --env <name>               Select environment (e.g. QA, staging)
+shotgun run --collection <name>        Run one collection
+shotgun run --tags <tag1,tag2>         Filter by tags (comma-separated)
+shotgun run --suite <name>             Run a named suite
+shotgun run --file <path>              Run a single test file
+shotgun run --format json              JSON output (for CI pipelines)
+shotgun run --format tap               TAP output
 
-banger snapshot                       Capture/update all baselines
-banger snapshot --env <name>          Snapshot against specific environment
-banger snapshot --file <path>         Update single test baseline
+shotgun snapshot                       Capture/update all baselines
+shotgun snapshot --env <name>          Snapshot against specific environment
+shotgun snapshot --file <path>         Update single test baseline
 
-banger report                         Show latest run report
-banger report --run <timestamp>       Show specific run
-banger report --format json           JSON output
+shotgun report                         Show latest run report
+shotgun report --run <timestamp>       Show specific run
+shotgun report --format json           JSON output
 
-banger lint                           Validate all YAML files (no HTTP)
-banger lint --file <path>             Validate single file
+shotgun lint                           Validate all YAML files (no HTTP)
+shotgun lint --file <path>             Validate single file
 
-banger --version
-banger --help
+shotgun --version
+shotgun --help
 ```
 
 **Exit codes:** `0` = all tests passed. `1` = one or more failures (suitable for CI gate).
@@ -389,10 +389,10 @@ banger --help
 ```yaml
 # GitHub Actions example
 - name: Run API smoke tests
-  run: npx banger run --env QA --suite smoke --format json
+  run: npx shotgun run --env QA --suite smoke --format json
   env:
     BASE_URL: ${{ secrets.QA_BASE_URL }}
     AUTH_TOKEN: ${{ secrets.QA_AUTH_TOKEN }}
 ```
 
-Banger reads env vars from both the `.env` file and `process.env`, so CI secrets can be injected directly without a file.
+Shotgun reads env vars from both the `.env` file and `process.env`, so CI secrets can be injected directly without a file.

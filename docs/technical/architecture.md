@@ -1,4 +1,4 @@
-# Banger — API Testing System Architecture
+# Shotgun — API Testing System Architecture
 
 > Continuation of: [`docs/iniital-research.md`](../iniital-research.md)
 > Status: Design Draft v0.1 — 2026-03-29
@@ -7,7 +7,7 @@
 
 ## 1. Philosophy
 
-Banger is a **shell-first, TypeScript-enhanced** API testing system.
+Shotgun is a **shell-first, TypeScript-enhanced** API testing system.
 
 The design layers are:
 
@@ -26,7 +26,7 @@ The goal: use UNIX tools as far as they take us, and only bring in TypeScript wh
 ## 2. Folder Structure
 
 ```
-banger/
+shotgun/
 ├── src/                          # TypeScript orchestration engine
 │   ├── index.ts                  # CLI entrypoint
 │   ├── runner.ts                 # Test runner loop
@@ -71,7 +71,7 @@ banger/
 │   ├── auth.ts                   # Token helpers
 │   └── transforms.ts             # Body transformers
 │
-├── banger.config.yaml            # Global config
+├── shotgun.config.yaml            # Global config
 ├── package.json
 └── tsconfig.json
 ```
@@ -92,16 +92,16 @@ TIMEOUT=10
 
 **Selection:**
 ```bash
-banger run --env QA          # loads envs/QA.env
-banger run --env QA-2        # loads envs/QA-2.env
-banger run                   # defaults to envs/local.env
+shotgun run --env QA          # loads envs/QA.env
+shotgun run --env QA-2        # loads envs/QA-2.env
+shotgun run                   # defaults to envs/local.env
 ```
 
 Variables are available in YAML test files as `${VAR_NAME}` interpolation and in the TypeScript context as `ctx.env.VAR_NAME`.
 
 ---
 
-## 4. Global Config (`banger.config.yaml`)
+## 4. Global Config (`shotgun.config.yaml`)
 
 ```yaml
 version: 1
@@ -215,7 +215,7 @@ order:
 
 # Runs once before all tests in this collection
 setup: |
-  ctx.vars.testAgentName = `banger-${Date.now()}`;
+  ctx.vars.testAgentName = `shotgun-${Date.now()}`;
   ctx.log(`Will use agent name: ${ctx.vars.testAgentName}`);
 
 # Runs once after all tests in this collection
@@ -249,12 +249,12 @@ tags:
 
 ## 8. TypeScript Scripting Context
 
-Every pre/post script receives a `BangerContext` object:
+Every pre/post script receives a `ShotgunContext` object:
 
 ```typescript
 // src/types.ts
 
-export interface BangerContext {
+export interface ShotgunContext {
   // Loaded env vars (merged: global + .env file + test-level overrides)
   env: Record<string, string>;
 
@@ -279,7 +279,7 @@ export interface BangerContext {
     duration: number;        // ms
   };
 
-  // Assertion helper — throws BangerAssertionError on failure
+  // Assertion helper — throws ShotgunAssertionError on failure
   assert(condition: boolean, message: string): void;
 
   // Log to run log (shows in output and written to run log file)
@@ -287,9 +287,9 @@ export interface BangerContext {
 
   // Make additional HTTP calls (for setup/teardown/chaining)
   http: {
-    get(path: string, opts?: RequestOpts): Promise<BangerResponse>;
-    post(path: string, body: unknown, opts?: RequestOpts): Promise<BangerResponse>;
-    delete(path: string, opts?: RequestOpts): Promise<BangerResponse>;
+    get(path: string, opts?: RequestOpts): Promise<ShotgunResponse>;
+    post(path: string, body: unknown, opts?: RequestOpts): Promise<ShotgunResponse>;
+    delete(path: string, opts?: RequestOpts): Promise<ShotgunResponse>;
   };
 
   // Access shared scripts from scripts/ directory
@@ -305,7 +305,7 @@ Pre/post scripts are transpiled and executed in a sandboxed Node.js context with
 
 ```mermaid
 flowchart TD
-    A[banger run --env QA --collection agents] --> B[Load banger.config.yaml]
+    A[shotgun run --env QA --collection agents] --> B[Load shotgun.config.yaml]
     B --> C[Load envs/QA.env]
     C --> D[Discover test YAML files for collection]
     D --> E[Run _collection.yaml setup hook]
@@ -363,13 +363,13 @@ This keeps curl native and avoids any HTTP library overhead in Node.
 
 ```bash
 # Capture new baselines (first run or intentional update)
-banger snapshot --env QA --collection agents
+shotgun snapshot --env QA --collection agents
 
 # Compare only (no baseline update)
-banger run --env QA
+shotgun run --env QA
 
 # Update specific test baseline
-banger snapshot --file tests/collections/agents/get-agents.yaml
+shotgun snapshot --file tests/collections/agents/get-agents.yaml
 ```
 
 Baselines live in `expected/` keyed by collection + sanitized path:
@@ -441,7 +441,7 @@ runs/2026-03-28_20-05-32/
   },
   "assertions": { ... },
   "diff": null,
-  "script_output": ["Will use agent name: banger-1743290..."]
+  "script_output": ["Will use agent name: shotgun-1743290..."]
 }
 ```
 
@@ -453,35 +453,35 @@ Auth tokens in logs are redacted (`***`).
 
 ```bash
 # Run all tests with default env
-banger run
+shotgun run
 
 # Run with specific env
-banger run --env QA
-banger run --env QA-2
+shotgun run --env QA
+shotgun run --env QA-2
 
 # Run a specific collection
-banger run --collection agents
+shotgun run --collection agents
 
 # Run by tag
-banger run --tags smoke
-banger run --tags smoke,agents
+shotgun run --tags smoke
+shotgun run --tags smoke,agents
 
 # Run a specific test file
-banger run --file tests/collections/agents/get-agents.yaml
+shotgun run --file tests/collections/agents/get-agents.yaml
 
 # Run a named suite
-banger run --suite smoke
+shotgun run --suite smoke
 
 # Capture / update baselines
-banger snapshot --env QA
-banger snapshot --file tests/collections/agents/get-agents.yaml
+shotgun snapshot --env QA
+shotgun snapshot --file tests/collections/agents/get-agents.yaml
 
 # Show last run report
-banger report
-banger report --run 2026-03-28_20-05-32
+shotgun report
+shotgun report --run 2026-03-28_20-05-32
 
 # Validate test YAML files (no execution)
-banger lint
+shotgun lint
 ```
 
 ---

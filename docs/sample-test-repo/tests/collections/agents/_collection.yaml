@@ -23,7 +23,7 @@ tags:
 setup: |
   // Generate a unique agent name for this run so tests don't collide
   const ts = Date.now();
-  ctx.vars.testAgentName = `banger-agent-${ts}`;
+  ctx.vars.testAgentName = `shotgun-agent-${ts}`;
   ctx.log(`Test agent name for this run: ${ctx.vars.testAgentName}`);
 
 # Runs ONCE after the last test, even if tests fail.

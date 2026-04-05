@@ -1,5 +1,5 @@
 /**
- * src/commands/run.ts — banger run subcommand
+ * src/commands/run.ts — shotgun run subcommand
  */
 
 import { runTests } from '../runner.js';

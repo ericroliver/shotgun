@@ -20,7 +20,7 @@ pre: |
       temperature: 0.7,
       max_tokens: 1024,
     },
-    description: 'Created by banger test suite',
+    description: 'Created by shotgun test suite',
   };
 
 request:

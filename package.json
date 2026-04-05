@@ -1,10 +1,10 @@
 {
-  "name": "banger",
+  "name": "shotgun",
   "version": "0.1.0",
   "description": "Shell-first, TypeScript-enhanced API testing system",
   "type": "module",
   "bin": {
-    "banger": "./dist/index.js"
+    "shotgun": "./dist/index.js"
   },
   "exports": {
     ".": {
@@ -27,8 +27,8 @@
     "test:local": "tsx src/index.ts run --env local",
     "test:qa": "tsx src/index.ts run --env QA",
     "test:qa2": "tsx src/index.ts run --env QA-2",
-    "pkg:macos": "bun build --compile --target=bun-darwin-arm64 src/index.ts --outfile bin/banger-macos-arm64 && cp bin/banger-macos-arm64 bin/banger",
-    "pkg:linux": "bun build --compile --target=bun-linux-x64 src/index.ts --outfile bin/banger-linux-x64",
+    "pkg:macos": "bun build --compile --target=bun-darwin-arm64 src/index.ts --outfile bin/shotgun-macos-arm64 && cp bin/shotgun-macos-arm64 bin/shotgun",
+    "pkg:linux": "bun build --compile --target=bun-linux-x64 src/index.ts --outfile bin/shotgun-linux-x64",
     "pkg:all": "npm run pkg:macos && npm run pkg:linux"
   },
   "dependencies": {
@@ -49,6 +49,6 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-org/banger.git"
+    "url": "https://github.com/your-org/shotgun.git"
   }
 }

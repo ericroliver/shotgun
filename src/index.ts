@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * src/index.ts — banger CLI entrypoint
+ * src/index.ts — shotgun CLI entrypoint
  */
 
 import { run } from './commands/run.js';
@@ -25,28 +25,28 @@ function getVersion(): string {
 }
 
 const USAGE = `
-banger — shell-first API testing system
+shotgun — shell-first API testing system
 
 Usage:
-  banger run                          Run all tests (default env)
-  banger run --env QA                 Select environment
-  banger run --collection agents      Run one collection
-  banger run --tags smoke             Filter by tag (comma-separated)
-  banger run --suite smoke            Run a named suite
-  banger run --file path/to/test.yaml Run single test file
-  banger run --format json            JSON output (for CI)
+  shotgun run                          Run all tests (default env)
+  shotgun run --env QA                 Select environment
+  shotgun run --collection agents      Run one collection
+  shotgun run --tags smoke             Filter by tag (comma-separated)
+  shotgun run --suite smoke            Run a named suite
+  shotgun run --file path/to/test.yaml Run single test file
+  shotgun run --format json            JSON output (for CI)
 
-  banger snapshot                     Capture/update all baselines
-  banger snapshot --file path/...     Update single test baseline
+  shotgun snapshot                     Capture/update all baselines
+  shotgun snapshot --file path/...     Update single test baseline
 
-  banger report                       Show last run report
-  banger report --run <timestamp>     Show specific run
+  shotgun report                       Show last run report
+  shotgun report --run <timestamp>     Show specific run
 
-  banger lint                         Validate all YAML files
-  banger lint --file path/to/test.yaml
+  shotgun lint                         Validate all YAML files
+  shotgun lint --file path/to/test.yaml
 
-  banger --version                    Print version
-  banger --help                       Print this message
+  shotgun --version                    Print version
+  shotgun --help                       Print this message
 `.trimStart();
 
 interface ParsedArgs {

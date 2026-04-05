@@ -9,7 +9,7 @@ import { unlinkSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
-import type { BangerRequest, BangerResponse, EnvVars } from './types.js';
+import type { ShotgunRequest, ShotgunResponse, EnvVars } from './types.js';
 
 export interface ExecutorOptions {
   timeout?: number;
@@ -17,7 +17,7 @@ export interface ExecutorOptions {
 }
 
 /**
- * Builds a BangerRequest from test definition + env, then executes it via curl.
+ * Builds a ShotgunRequest from test definition + env, then executes it via curl.
  *
  * Performance notes:
  *  - Headers are passed as repeated -H args (no temp file write/unlink).
@@ -27,13 +27,13 @@ export interface ExecutorOptions {
  *    that curl writes to stdout via -D -.
  */
 export async function executeRequest(
-  req: BangerRequest,
+  req: ShotgunRequest,
   env: EnvVars,
   opts: ExecutorOptions = {},
-): Promise<BangerResponse> {
+): Promise<ShotgunResponse> {
   const timeout = opts.timeout ?? parseInt(env.TIMEOUT ?? '10', 10);
   const tmpId = randomBytes(6).toString('hex');
-  const bodyOutFile = join(tmpdir(), `banger-body-${tmpId}.tmp`);
+  const bodyOutFile = join(tmpdir(), `shotgun-body-${tmpId}.tmp`);
 
   // Build headers — passed directly as repeated -H args, no temp file.
   const headers: Record<string, string> = {
@@ -64,7 +64,7 @@ export async function executeRequest(
   curlArgs.push(
     '-o', bodyOutFile,
     '-D', '-',                         // dump response headers to stdout
-    '-w', '\n__BANGER_STATUS__%{http_code}__BANGER_TIME__%{time_total}',
+    '-w', '\n__SHOTGUN_STATUS__%{http_code}__SHOTGUN_TIME__%{time_total}',
     ...(opts.followRedirects !== false ? ['-L'] : []),
     url,
   );
@@ -84,7 +84,7 @@ export async function executeRequest(
     const duration = Date.now() - startTime;
 
     // Parse stdout: response headers + sentinel line with status + time
-    const sentinelMatch = stdout.match(/__BANGER_STATUS__(\d+)__BANGER_TIME__([\d.]+)/);
+    const sentinelMatch = stdout.match(/__SHOTGUN_STATUS__(\d+)__SHOTGUN_TIME__([\d.]+)/);
     const status = sentinelMatch ? parseInt(sentinelMatch[1], 10) : 0;
 
     // Parse response headers from stdout (everything before blank line)
@@ -105,7 +105,7 @@ export async function executeRequest(
       // non-JSON body — keep as string
     }
 
-    if (stderr && process.env.BANGER_DEBUG) {
+    if (stderr && process.env.SHOTGUN_DEBUG) {
       console.error(`[executor] curl stderr: ${stderr}`);
     }
 
@@ -121,7 +121,7 @@ export async function executeRequest(
   }
 }
 
-function buildUrl(req: BangerRequest, _env: EnvVars): string {
+function buildUrl(req: ShotgunRequest, _env: EnvVars): string {
   let url = req.url;
   const params = req.params;
   if (params && Object.keys(params).length > 0) {

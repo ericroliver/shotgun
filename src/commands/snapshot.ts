@@ -1,5 +1,5 @@
 /**
- * src/commands/snapshot.ts — banger snapshot subcommand
+ * src/commands/snapshot.ts — shotgun snapshot subcommand
  * Runs tests in snapshot-capture mode: writes expected/ baselines instead of diffing.
  */
 

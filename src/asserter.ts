@@ -10,9 +10,9 @@ import { spawn } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import type {
-  BangerResponse,
+  ShotgunResponse,
   TestDefinition,
-  BangerConfig,
+  ShotgunConfig,
   AssertionResults,
   ShapeAssertionResult,
 } from './types.js';
@@ -20,8 +20,8 @@ import { sanitizeName } from './loader.js';
 
 export interface AssertContext {
   test: TestDefinition;
-  response: BangerResponse;
-  config: BangerConfig;
+  response: ShotgunResponse;
+  config: ShotgunConfig;
   cwd: string;
   collectionName?: string;
   /** When true: write snapshot instead of diffing */
@@ -146,7 +146,7 @@ async function runSnapshotAssertion(ctx: AssertContext): Promise<SnapshotResult>
 export async function writeSnapshot(
   raw: string,
   test: TestDefinition,
-  config: BangerConfig,
+  config: ShotgunConfig,
   expectedPath?: string,
 ): Promise<void> {
   const path = expectedPath ?? getExpectedPathFromTest(test, config);
@@ -160,7 +160,7 @@ export async function writeSnapshot(
   // and the raw response body is empty. Writing blank would silently corrupt the
   // snapshot file and cause every subsequent run to fail with a confusing diff.
   if (!normalized.trim()) {
-    if (process.env.BANGER_DEBUG) {
+    if (process.env.SHOTGUN_DEBUG) {
       console.warn(`[asserter] writeSnapshot skipped for "${path}" — normalized content is empty (API may be unreachable)`);
     }
     return;
@@ -176,7 +176,7 @@ function getExpectedPath(ctx: AssertContext): string {
 
 export function getExpectedPathFromTest(
   test: TestDefinition,
-  config: BangerConfig,
+  config: ShotgunConfig,
   cwd = process.cwd(),
   collectionName?: string,
 ): string {
@@ -219,7 +219,7 @@ async function normalizeJson(raw: string, ignoreFields: string[]): Promise<strin
         resolve(stdout.trim());
       } else {
         // Fallback: return raw if jq fails (e.g. non-JSON response)
-        if (process.env.BANGER_DEBUG) {
+        if (process.env.SHOTGUN_DEBUG) {
           console.error(`[asserter] jq normalize failed: ${stderr}`);
         }
         resolve(raw.trim());
