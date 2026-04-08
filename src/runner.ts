@@ -70,9 +70,9 @@ export async function runTests(opts: RunOptions): Promise<RunSummary> {
   for (const collectionName of collectionNames) {
     const { definition, testFiles } = loadCollection(collectionName, config, cwd);
 
-    // Tag filter at collection level
+    // Tag filter at collection level — if collection has no overlapping tags, move on
     if (opts.tags?.length && !opts.tags.some(t => definition.tags?.includes(t))) {
-      // Collection has no overlapping tags — skip unless filtering at test level
+      continue;
     }
 
     printCollectionHeader(definition.name ?? collectionName);
@@ -96,7 +96,7 @@ export async function runTests(opts: RunOptions): Promise<RunSummary> {
 
       if (setupError !== null) {
         console.error(`Collection setup failed: ${setupError}`);
-        // Fail all tests in collection — setup failure is not a skip, it's an error
+        // Fail all tests in collection
         for (const file of testFiles) {
           const test = loadTestFile(file, env);
           const failed: TestResult = {
@@ -211,18 +211,6 @@ async function runSingleTest(
         scriptsDir: opts.scriptsDir,
       });
       scriptOutput.push(...preResult.logs);
-      // ctx.skip() was called — record as skipped, do not run the request
-      if (preResult.skipped) {
-        return {
-          name: test.name,
-          file,
-          status: 'skipped',
-          durationMs: Date.now() - startMs,
-          assertions: {},
-          error: preResult.skipReason,
-          scriptOutput: scriptOutput.length ? scriptOutput : undefined,
-        };
-      }
       if (!preResult.passed) {
         return makeFailedResult(test.name, file, startMs, {}, `Pre-script failed: ${preResult.error}`, scriptOutput);
       }

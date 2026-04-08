@@ -5,7 +5,7 @@
  */
 
 import { spawn } from 'node:child_process';
-import { unlinkSync, existsSync, readFileSync } from 'node:fs';
+import { unlinkSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
@@ -21,10 +21,12 @@ export interface ExecutorOptions {
  *
  * Performance notes:
  *  - Headers are passed as repeated -H args (no temp file write/unlink).
- *  - Request body is piped to curl's stdin (no temp file write/unlink).
- *  - Only one temp file remains: the response body output file, which is
- *    necessary to cleanly separate the response body from the header dump
- *    that curl writes to stdout via -D -.
+ *  - Request body is written to a temp file and passed as @file to curl.
+ *    Piping via stdin (@-) is unreliable in Bun's runtime — the writable
+ *    stream may close before all bytes are flushed, producing a truncated
+ *    Content-Length. Writing to a file and letting curl read it is safe.
+ *  - Two temp files at most: the body input file and the response body output
+ *    file. Both are unlinked in the finally block.
  */
 export async function executeRequest(
   req: ShotgunRequest,
@@ -69,17 +71,31 @@ export async function executeRequest(
     url,
   );
 
-  // Request body — piped to stdin, no temp file.
-  let requestBodyStr: string | null = null;
+  // Request body — written to a temp file, passed as @file to curl.
+  // Using stdin (@-) is unreliable in Bun: the writable stream can be closed
+  // before all bytes flush, causing a truncated Content-Length on the wire.
+  let bodyInFile: string | null = null;
   if (req.body !== undefined && req.body !== null) {
-    requestBodyStr = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
-    curlArgs.push('--data-binary', '@-');
+    const bodyStr = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+    const byteLen = Buffer.byteLength(bodyStr, 'utf8');
+    bodyInFile = join(tmpdir(), `shotgun-req-${tmpId}.tmp`);
+    writeFileSync(bodyInFile, bodyStr, 'utf8');
+    // Verify what was actually written — read it back immediately.
+    const verified = readFileSync(bodyInFile, 'utf8');
+    const verifiedBytes = Buffer.byteLength(verified, 'utf8');
+    process.stderr.write(
+      `[executor] body-write: ${byteLen} bytes\n` +
+      `[executor] body-verify: ${verifiedBytes} bytes → ${verified.length > 200 ? verified.slice(0, 200) + '…' : verified}\n` +
+      `[executor] body-file: ${bodyInFile}\n`
+    );
+    curlArgs.push('--data-binary', `@${bodyInFile}`);
   }
+  process.stderr.write(`[executor] curl-args: ${JSON.stringify(curlArgs)}\n`);
 
   const startTime = Date.now();
 
   try {
-    const { stdout, stderr } = await spawnPromise('curl', curlArgs, requestBodyStr);
+    const { stdout, stderr } = await spawnPromise('curl', curlArgs);
 
     const duration = Date.now() - startTime;
 
@@ -118,6 +134,7 @@ export async function executeRequest(
     };
   } finally {
     cleanup(bodyOutFile);
+    if (bodyInFile) cleanup(bodyInFile);
   }
 }
 
@@ -147,14 +164,10 @@ function parseResponseHeaders(stdout: string): Record<string, string> {
 
 /**
  * Spawn a process and collect stdout/stderr.
- * If `stdinData` is provided it is written to the process's stdin then the
- * stream is closed — this is used to pipe request bodies to curl without
- * creating a temporary file.
  */
 function spawnPromise(
   cmd: string,
   args: string[],
-  stdinData: string | null = null,
 ): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     const proc = spawn(cmd, args);
@@ -164,11 +177,6 @@ function spawnPromise(
     proc.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
     proc.on('error', reject);
     proc.on('close', () => resolve({ stdout, stderr }));
-
-    if (stdinData !== null) {
-      proc.stdin.write(stdinData, 'utf8');
-      proc.stdin.end();
-    }
   });
 }
 

@@ -162,7 +162,8 @@ export function loadCollection(
   cwd: string = process.cwd(),
 ): { definition: CollectionDefinition; testFiles: string[] } {
   const testsDir = join(cwd, config.paths?.tests ?? 'tests');
-  const collectionDir = join(testsDir, 'collections', collectionName);
+  const collectionsDir = join(testsDir, 'collections');
+  const collectionDir = join(collectionsDir, collectionName);
 
   if (!existsSync(collectionDir)) {
     throw new Error(`Collection directory not found: ${collectionDir}`);
@@ -180,17 +181,45 @@ export function loadCollection(
     definition = result.data as CollectionDefinition;
   }
 
-  // Discover test files
-  const allTestFiles = readdirSync(collectionDir)
+  // Discover test files local to this collection
+  const localTestFiles = readdirSync(collectionDir)
     .filter(f => f.endsWith('.yaml') && f !== '_collection.yaml')
     .map(f => basename(f, '.yaml'));
 
-  // Apply ordering
-  const ordered = definition.order ?? [];
-  const unordered = allTestFiles.filter(f => !ordered.includes(f)).sort();
-  const finalOrder = [...ordered.filter(f => allTestFiles.includes(f)), ...unordered];
+  // Resolve ordered entries — supports cross-collection refs: "other-collection/test-name"
+  const orderedEntries = definition.order ?? [];
+  const resolvedOrdered: string[] = [];
+  const resolvedOrderedKeys = new Set<string>(); // "collection/test" keys already added
 
-  const testFiles = finalOrder.map(f => join(collectionDir, `${f}.yaml`));
+  for (const entry of orderedEntries) {
+    if (entry.includes('/')) {
+      // Cross-collection reference: "other-collection/test-name"
+      const [refCollection, refTest] = entry.split('/');
+      const refFile = join(collectionsDir, refCollection, `${refTest}.yaml`);
+      if (!existsSync(refFile)) {
+        throw new Error(
+          `Cross-collection test reference not found: "${entry}" → ${refFile}\n` +
+          `Referenced from collection "${collectionName}" _collection.yaml`
+        );
+      }
+      resolvedOrdered.push(refFile);
+      resolvedOrderedKeys.add(entry);
+    } else {
+      // Local reference — only include if it actually exists in this collection dir
+      if (localTestFiles.includes(entry)) {
+        resolvedOrdered.push(join(collectionDir, `${entry}.yaml`));
+        resolvedOrderedKeys.add(entry);
+      }
+    }
+  }
+
+  // Append any local files not already in the ordered list
+  const unordered = localTestFiles
+    .filter(f => !resolvedOrderedKeys.has(f))
+    .sort()
+    .map(f => join(collectionDir, `${f}.yaml`));
+
+  const testFiles = [...resolvedOrdered, ...unordered];
 
   return { definition, testFiles };
 }

@@ -9,19 +9,18 @@
 
 1. [Auth Wiring](#1-auth-wiring)
 2. [Variable Stashing (the create→read→delete chain)](#2-variable-stashing-the-createreaddelete-chain)
-3. [Skip Patterns](#3-skip-patterns)
-4. [Snapshot Policy](#4-snapshot-policy)
-5. [Write Test Shape Assertions](#5-write-test-shape-assertions)
-6. [Teardown as Safety Net](#6-teardown-as-safety-net)
-7. [Test Data Uniqueness](#7-test-data-uniqueness)
-8. [Workspace Loading](#8-workspace-loading)
-9. [URL Path Encoding Gotcha](#9-url-path-encoding-gotcha)
-10. [Status Code Surprises](#10-status-code-surprises)
-11. [jq Shape Assertion Tips](#11-jq-shape-assertion-tips)
-12. [Debugging Failed Runs](#12-debugging-failed-runs)
-13. [Collection Order Matters](#13-collection-order-matters)
-14. [ctx.http vs curl](#14-ctxhttp-vs-curl)
-15. [Testing Plans as Living Docs](#15-testing-plans-as-living-docs)
+3. [Snapshot Policy](#3-snapshot-policy)
+4. [Write Test Shape Assertions](#4-write-test-shape-assertions)
+5. [Teardown as Safety Net](#5-teardown-as-safety-net)
+6. [Test Data Uniqueness](#6-test-data-uniqueness)
+7. [Workspace Loading](#7-workspace-loading)
+8. [URL Path Encoding Gotcha](#8-url-path-encoding-gotcha)
+9. [Status Code Surprises](#9-status-code-surprises)
+10. [jq Shape Assertion Tips](#10-jq-shape-assertion-tips)
+11. [Debugging Failed Runs](#11-debugging-failed-runs)
+12. [Collection Order Matters](#12-collection-order-matters)
+13. [ctx.http vs curl](#13-ctxhttp-vs-curl)
+14. [Testing Plans as Living Docs](#14-testing-plans-as-living-docs)
 
 ---
 
@@ -69,7 +68,7 @@ ctx.log(`Node A created — path: ${ctx.vars.createdNodePathA}`);
 
 // pre-script of READ / DELETE test:
 const path = ctx.vars.createdNodePathA as string;
-if (!path) ctx.skip('No node path stashed — create test may have failed');
+ctx.assert(!!path, 'createdNodePathA is not set — create test must have run and succeeded first');
 ctx.request.path = `/api/graph/nodes/${path}`;
 ```
 
@@ -97,26 +96,7 @@ ctx.log('Node A deleted and var cleared');
 
 ---
 
-## 3. Skip Patterns
-
-Use `ctx.skip()` in `pre` when a test depends on a var that a previous test was supposed to set. This makes it clear the test is a no-op, not a failure.
-
-```javascript
-// pre-script:
-const id = ctx.vars.createdLinkId as string;
-if (!id) {
-  ctx.skip('No link id stashed — create-graph-link may have failed or was skipped');
-}
-ctx.request.path = `/api/graph/links/${id}`;
-```
-
-**`ctx.skip()` never returns** — it throws internally and terminates the pre-script. No need for `return` after it (TypeScript will flag unreachable code if you try).
-
-**Don't use skip for expected API behavior** (e.g. 405 on DELETE of a link). Skip is for "we can't even try because a prerequisite didn't run." Use `response.status` assertions for known API quirks.
-
----
-
-## 4. Snapshot Policy
+## 3. Snapshot Policy
 
 The rule is simple:
 
@@ -143,7 +123,7 @@ response:
 
 ---
 
-## 5. Write Test Shape Assertions
+## 4. Write Test Shape Assertions
 
 Since write tests don't snapshot, shape assertions are your only structural verification. Make them meaningful:
 
@@ -170,7 +150,7 @@ curl -s -X POST "${BASE_URL}/api/graph/nodes" \
 
 ---
 
-## 6. Teardown as Safety Net
+## 5. Teardown as Safety Net
 
 Teardown exists to clean up test data even if mid-suite tests fail. Write it defensively:
 
@@ -199,7 +179,7 @@ Key principles:
 
 ---
 
-## 7. Test Data Uniqueness
+## 6. Test Data Uniqueness
 
 Any test data your suite creates should use a timestamp-based unique key. This prevents:
 - Collisions between repeated runs (e.g., leftover data from a previous failed run)
@@ -216,7 +196,7 @@ ctx.vars.testNodePathB = `banger-test/node-b-${ts}`;
 
 ---
 
-## 8. Workspace Loading
+## 7. Workspace Loading
 
 For APIs that require a workspace context, load it in collection `setup` — not per-test:
 
@@ -240,7 +220,7 @@ if (wsName) {
 
 ---
 
-## 9. URL Path Encoding Gotcha
+## 8. URL Path Encoding Gotcha
 
 ### Don't encode path separators
 
@@ -258,7 +238,7 @@ ctx.request.path = `/api/graph/nodes/${encodeURIComponent(ctx.vars.createdNodePa
 
 ---
 
-## 10. Status Code Surprises
+## 9. Status Code Surprises
 
 APIs don't always follow REST conventions. Document quirks in testing plans and collection descriptions — never silently swallow unexpected codes.
 
@@ -288,7 +268,7 @@ response:
 
 ---
 
-## 11. jq Shape Assertion Tips
+## 10. jq Shape Assertion Tips
 
 Shape assertions use `jq` boolean expressions. A few patterns:
 
@@ -328,7 +308,7 @@ const items = Array.isArray(ctx.response.body)
 
 ---
 
-## 12. Debugging Failed Runs
+## 11. Debugging Failed Runs
 
 ### Check the run logs first
 
@@ -379,7 +359,7 @@ npx tsx ../src/index.ts run --file tests/collections/graph/create-graph-node-a.y
 
 ---
 
-## 13. Collection Order Matters
+## 12. Collection Order Matters
 
 The `order` array in `_collection.yaml` is not optional for CRUD collections — it controls execution sequence. If you add a test file, add it to `order` in the right position:
 
@@ -402,7 +382,7 @@ Tests not listed in `order` still run, but at an unspecified position after the 
 
 ---
 
-## 14. ctx.http vs curl
+## 13. ctx.http vs curl
 
 `ctx.http.*` and `curl` serve different purposes:
 
@@ -418,7 +398,7 @@ Tests not listed in `order` still run, but at an unspecified position after the 
 
 ---
 
-## 15. Testing Plans as Living Docs
+## 14. Testing Plans as Living Docs
 
 The `local-dev-test-repo/testing-plans/` directory contains one Markdown file per collection. These are **living documents** — update them as you learn things about the API.
 
@@ -426,7 +406,6 @@ A testing plan records:
 - Which endpoints to test and the target test file names
 - Snapshot policy decisions
 - Shape assertion patterns (so future tests are consistent)
-- Skip patterns for dependent tests
 - Known API quirks specific to that collection
 - Suite membership (`smoke.yaml`, `gets-all.yaml`)
 
@@ -441,7 +420,7 @@ A testing plan records:
 ```javascript
 if (ctx.vars.authHeader) ctx.request.headers['Authorization'] = ctx.vars.authHeader;
 const id = ctx.vars.createdResourceId as string;
-if (!id) ctx.skip('No resource id — create test may have failed or was skipped');
+ctx.assert(!!id, 'createdResourceId is not set — create test must have run and succeeded first');
 ctx.request.path = `/api/resource/${id}`;
 ```
 

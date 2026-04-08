@@ -200,7 +200,7 @@
 - [ ] `_collection.yaml` `teardown` script runs once after the last test (even if tests fail)
 - [ ] Both scripts receive full `ShotgunContext`
 - [ ] `ctx.vars` set in `setup` is available in all tests and `teardown`
-- [ ] If `setup` throws, all tests in the collection are marked `skipped` with reason
+- [ ] If `setup` throws, all tests in the collection are marked `failed` with reason
 - [ ] If `teardown` throws, it is logged but does not affect test results
 
 ---
@@ -230,7 +230,7 @@
 **Acceptance Criteria:**
 - [ ] During run: each test prints `→ METHOD /path ... OK` or `→ METHOD /path ... FAIL`
 - [ ] FAIL line includes: which assertion failed and a brief reason
-- [ ] End of run: summary table showing total/passed/failed/skipped + duration
+- [ ] End of run: summary table showing total/passed/failed + duration
 - [ ] `--format json` outputs `summary.json` content to stdout (for CI/piping)
 - [ ] `--format tap` outputs TAP-compatible lines (for TAP consumers)
 - [ ] Exit code `0` if all tests pass, `1` if any fail (critical for CI)

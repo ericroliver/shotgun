@@ -67,8 +67,7 @@ ctx.env          // env vars (read-only)
 ctx.vars         // mutable cross-test store — persists for the entire run
 ctx.request      // current request — mutable in pre-script
 ctx.response     // populated after curl — available in post-script
-ctx.assert(bool, msg)   // throws BangerAssertionError on false
-ctx.skip(reason)        // marks test skipped, terminates pre-script
+ctx.assert(bool, msg)   // throws ShotgunAssertionError on false — FAILS the test
 ctx.log(msg)            // writes to stdout + run log
 ctx.http.get/post/put/patch/delete(...)  // programmatic HTTP (NOT curl)
 ctx.scripts      // shared helpers from the test repo's scripts/ dir
@@ -117,8 +116,8 @@ Create-then-read tests stash IDs/paths into `ctx.vars` so downstream tests can c
 ctx.vars.createdNodePathA = body.path ?? ctx.vars.testNodePathA;
 
 // pre-script of read/delete test:
-const path = ctx.vars.createdNodePathA;
-if (!path) ctx.skip('No node path — create test may have failed');
+const path = ctx.vars.createdNodePathA as string;
+ctx.assert(!!path, 'createdNodePathA is not set — create test must have run and succeeded first');
 ctx.request.path = `/api/graph/nodes/${path}`;
 ```
 
@@ -149,6 +148,16 @@ ctx.vars.authHeader = raw ? (raw.startsWith('Bearer ') ? raw : `Bearer ${raw}`) 
 ```
 
 Each test's `pre` script applies it: `if (ctx.vars.authHeader) ctx.request.headers['Authorization'] = ctx.vars.authHeader;`
+
+---
+
+## No Skip — Ever
+
+**`ctx.skip()` does not exist.** A skipped test is a useless test — it provides zero signal.
+
+If a test can't run because a prerequisite failed, **that is a test failure.** Use `ctx.assert(!!value, 'reason')` to surface the dependency explicitly. The run will fail with a clear message pointing to the root cause.
+
+The only valid statuses are `passed`, `failed`, and `needs_baseline`. There is no `skipped`.
 
 ---
 

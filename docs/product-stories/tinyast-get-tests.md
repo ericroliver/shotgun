@@ -97,7 +97,7 @@ plumbing is wired now (env var + header injection) so no rework is needed when a
 | GET /api/agents/{name}/logs | `get-agent-logs.yaml` | same | stashes first logName |
 | GET /api/agents/{name}/logs/{logName} | `get-agent-log-by-name.yaml` | chained from logs list | |
 | GET /api/agents/{name}/output | `get-agent-output.yaml` | same agent name | |
-| GET /api/agents/{name}/stream | `get-agent-stream.yaml` | same agent name | SSE — expect 200, skip if no agent |
+| GET /api/agents/{name}/stream | `get-agent-stream.yaml` | same agent name | SSE — expect 200, assert agent name is set |
 
 ### build (4)
 | Endpoint | Test File | Path Param Strategy |
@@ -261,7 +261,7 @@ AUTH_TOKEN=
 # ── Agents ───────────────────────────────────────────────────────────────────
 AGENT_NAME=
 # Set to the name of a known/running agent if any exist, else leave blank.
-# Tests that need an agent name will skip gracefully if blank and none found.
+# Tests that need an agent name will FAIL if blank and no chained value exists — set this var.
 
 # ── Code / AST ───────────────────────────────────────────────────────────────
 FILE_PATH=
@@ -299,8 +299,7 @@ VC_INTEGRATION_ID=
 
 > **Note on blank vars:** Tests that require a path param check for a non-empty value
 > in their `pre:` script. If the var is blank AND no chained value exists in `ctx.vars`,
-> the test logs a warning and skips with `ctx.skip('No value available for ...')`.
-> This keeps the run clean — skipped ≠ failed.
+> the test uses `ctx.assert` to fail with a clear message identifying the missing prerequisite.
 
 ---
 
@@ -349,21 +348,21 @@ if (Array.isArray(sessions) && sessions.length > 0) {
 
 // In get-build-session.yaml pre: script:
 const id = ctx.vars.firstSessionId || ctx.env.SESSION_ID;
-if (!id) { ctx.skip('No sessionId available — run get-build-sessions first or set SESSION_ID'); }
+ctx.assert(!!id, 'No sessionId available — run get-build-sessions first or set SESSION_ID in env');
 ctx.request.path = `/api/build/sessions/${id}`;
 ```
 
 ---
 
-## Skip vs Fail Strategy
+## Missing Param Strategy
 
-Tests that require a path param handle missing values gracefully:
+Tests that require a path param handle missing values explicitly:
 
 | Scenario | Behavior |
 |----------|----------|
 | Param available (chained or env var) | Test runs normally |
-| Param missing, list returned 0 results | `ctx.skip('reason')` — marked SKIPPED, not FAILED |
-| Param missing, no list endpoint before it | `ctx.skip('reason')` — marked SKIPPED |
+| Param missing, list returned 0 results | `ctx.assert` FAILS with clear message — set the env var or fix the prerequisite |
+| Param missing, no list endpoint before it | `ctx.assert` FAILS with clear message — set the env var |
 | API returns 404 | Test FAILS (unexpected for a known ID) |
 | API returns 200 | Test PASSES shape/snapshot checks |
 
@@ -404,7 +403,7 @@ Fast, read-only, no path params needed:
 - All tagged `smoke`
 
 ### `gets-all.yaml`
-All 14 collections. Full GET coverage pass. Includes skippable tests.
+All 14 collections. Full GET coverage pass. Tests that require env vars will fail if those vars are not set — set them in `local.env` before running.
 
 ---
 

@@ -116,8 +116,6 @@ export interface ShotgunContext {
   response: ShotgunResponse;
   /** Throws ShotgunAssertionError if condition is false */
   assert(condition: boolean, message: string): void;
-  /** Marks the test as skipped with the given reason (terminates pre-script immediately) */
-  skip(reason: string): never;
   /** Write a message to stdout and to the per-test run log */
   log(message: string): void;
   /** HTTP helpers for setup/teardown/chaining (does NOT use curl) */
@@ -149,7 +147,7 @@ export interface AssertionResults {
 // Run log schema
 // ---------------------------------------------------------------------------
 
-export type TestResultStatus = 'passed' | 'failed' | 'skipped' | 'needs_baseline';
+export type TestResultStatus = 'passed' | 'failed' | 'needs_baseline';
 
 export interface TestResult {
   name: string;
@@ -173,7 +171,6 @@ export interface RunSummary {
   total: number;
   passed: number;
   failed: number;
-  skipped: number;
   needsBaseline: number;
   results: TestResult[];
 }
@@ -213,13 +210,6 @@ export class ShotgunAssertionError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'ShotgunAssertionError';
-  }
-}
-
-export class ShotgunSkipError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ShotgunSkipError';
   }
 }
 

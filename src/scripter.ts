@@ -20,9 +20,6 @@ import { ShotgunAssertionError } from './types.js';
 
 export interface ScriptRunResult {
   passed: boolean;
-  /** When true the test should be recorded as skipped, not failed */
-  skipped?: boolean;
-  skipReason?: string;
   error?: string;
   logs: string[];
   /** Mutations applied to the request (from pre-script) */
@@ -116,12 +113,6 @@ const ctx = {
     }
   },
 
-  skip(reason: string): never {
-    const err = new Error(reason);
-    err.name = 'ShotgunSkipError';
-    throw err;
-  },
-
   log(message: string): void {
     __logs.push(String(message));
     process.stderr.write('[script] ' + String(message) + '\\n');
@@ -213,12 +204,6 @@ async function executeScript(scriptFile: string): Promise<ScriptRunResult> {
 
     proc.on('close', (code) => {
       if (code !== 0) {
-        // Check if it's a skip signal
-        const skipMatch = stderr.match(/ShotgunSkipError: (.+)/);
-        if (skipMatch) {
-          resolve({ passed: true, skipped: true, skipReason: skipMatch[1].trim(), logs });
-          return;
-        }
         // Check if it's an assertion error
         const assertMatch = stderr.match(/ShotgunAssertionError: (.+)/);
         const errorMsg = assertMatch

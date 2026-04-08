@@ -50,7 +50,6 @@ export class RunLogger {
 
     const passed = this.results.filter(r => r.status === 'passed').length;
     const failed = this.results.filter(r => r.status === 'failed').length;
-    const skipped = this.results.filter(r => r.status === 'skipped').length;
     const needsBaseline = this.results.filter(r => r.status === 'needs_baseline').length;
 
     const summary: RunSummary = {
@@ -64,7 +63,6 @@ export class RunLogger {
       total: this.results.length,
       passed,
       failed,
-      skipped,
       needsBaseline,
       results: this.results,
     };

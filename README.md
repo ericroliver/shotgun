@@ -2,6 +2,8 @@
 
 > Shell-first API testing with YAML test definitions, TypeScript scripting, and snapshot diffing.
 
+## **NOTICE: This project was completely written using agentic development tools.**
+
 Shotgun executes HTTP requests via `curl`, validates responses with `jq`, and diffs snapshots with `diff`. TypeScript handles test orchestration, pre/post hooks, and run logging. No HTTP client libraries. No heavy test frameworks.
 
 ---

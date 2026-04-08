@@ -63,9 +63,6 @@ export function printTestResult(result: TestResult): void {
       process.stdout.write(`${c.yellow}NEEDS BASELINE${c.reset}\n`);
       console.log(`    ${c.yellow}Run: shotgun snapshot to capture baseline${c.reset}`);
       break;
-    case 'skipped':
-      process.stdout.write(`${c.gray}SKIPPED${c.reset}\n`);
-      break;
   }
 
   // Print script output in debug mode
@@ -85,7 +82,7 @@ export function printCollectionHeader(name: string): void {
 // ---------------------------------------------------------------------------
 
 export function printSummary(summary: RunSummary): void {
-  const { total, passed, failed, skipped, needsBaseline, durationMs } = summary;
+  const { total, passed, failed, needsBaseline, durationMs } = summary;
 
   console.log(`\n${'─'.repeat(60)}`);
   console.log(
@@ -101,10 +98,6 @@ export function printSummary(summary: RunSummary): void {
     console.log(`  ${c.yellow}${needsBaseline} need baseline${c.reset}  ${c.green}${passed} passed${c.reset}  ${c.dim}${total} total${c.reset}`);
   } else {
     console.log(`  ${c.green}${c.bold}✓ All ${passed} tests passed${c.reset}  ${c.dim}${total} total${c.reset}`);
-  }
-
-  if (skipped > 0) {
-    console.log(`  ${c.gray}${skipped} skipped${c.reset}`);
   }
   console.log('');
 }
@@ -134,10 +127,9 @@ function printPrettyReport(summary: RunSummary): void {
   console.log('');
 
   for (const result of summary.results) {
-    const icon = result.status === 'passed' ? `${c.green}✓${c.reset}`
-      : result.status === 'failed'        ? `${c.red}✗${c.reset}`
-      : result.status === 'needs_baseline'? `${c.yellow}○${c.reset}`
-      : `${c.gray}–${c.reset}`;
+    const icon = result.status === 'passed'        ? `${c.green}✓${c.reset}`
+      : result.status === 'failed'                 ? `${c.red}✗${c.reset}`
+      : /* needs_baseline */                         `${c.yellow}○${c.reset}`;
 
     const dur = `${c.dim}${result.durationMs}ms${c.reset}`;
     console.log(`  ${icon} ${result.name} ${dur}`);
@@ -158,8 +150,7 @@ function printTap(summary: RunSummary): void {
   let i = 1;
   for (const result of summary.results) {
     const ok = result.status === 'passed';
-    const directive = result.status === 'skipped' ? ' # SKIP' : '';
-    console.log(`${ok ? 'ok' : 'not ok'} ${i++} - ${result.name}${directive}`);
+    console.log(`${ok ? 'ok' : 'not ok'} ${i++} - ${result.name}`);
     if (!ok && result.error) {
       console.log(`  ---`);
       console.log(`  message: '${result.error}'`);
