@@ -45,6 +45,13 @@ export interface TestDefinition {
   description?: string;
   collection?: string;
   tags?: string[];
+  /**
+   * Ordered list of test IDs this test depends on.
+   * Format: "collection/test-name" (cross-collection) or "test-name" (same collection).
+   * The runner will execute all deps — and their collection setups — before this test.
+   * Each dep runs at most once per session regardless of how many tests reference it.
+   */
+  dependsOn?: string[];
   /** Per-test env var overrides (merged on top of loaded .env) */
   env?: EnvVars;
   /** TypeScript source — runs before curl. May mutate ctx.request. */
@@ -64,10 +71,32 @@ export interface CollectionDefinition {
   description?: string;
   order?: string[];
   tags?: string[];
-  /** TypeScript source — runs once before first test */
+  /**
+   * Named setup fixtures to run before this collection's own setup: script.
+   * References fixture names in tests/setup-fixtures/ (without .yaml extension).
+   * Fixtures are idempotent — each runs at most once per session.
+   */
+  setup_fixtures?: string[];
+  /** TypeScript source — runs once before first test (after setup_fixtures) */
   setup?: string;
   /** TypeScript source — runs once after last test, even on failure */
   teardown?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Setup Fixture Definition (parsed from tests/setup-fixtures/*.yaml)
+// ---------------------------------------------------------------------------
+
+/**
+ * A named, reusable setup script that can be referenced by multiple collections
+ * via setup_fixtures: [...]. Fixtures are stateless setup-only scripts — no teardown.
+ * They should be idempotent (guard with ctx.vars._fixtureLoaded_{name}).
+ */
+export interface SetupFixtureDefinition {
+  name: string;
+  description?: string;
+  /** TypeScript source — same ctx as collection setup, including ctx.http */
+  script: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -149,7 +178,7 @@ export interface AssertionResults {
 // Run log schema
 // ---------------------------------------------------------------------------
 
-export type TestResultStatus = 'passed' | 'failed' | 'needs_baseline';
+export type TestResultStatus = 'passed' | 'failed' | 'needs_baseline' | 'dependency_failed';
 
 export interface TestTimings {
   /** Wall-clock time for curl to complete, per curl's own %{time_total} */
@@ -174,6 +203,21 @@ export interface TestResult {
   assertions: AssertionResults;
   scriptOutput?: string[];
   error?: string;
+  /**
+   * When status === 'dependency_failed': the canonical ID ("collection/test-name")
+   * of the first dependency that failed. Enables root-cause tracing without noise.
+   */
+  failedDependency?: string;
+  /**
+   * The resolved request that was (or would have been) sent to the server.
+   * Only populated on failed tests — omitted on passing tests to reduce noise.
+   */
+  resolvedRequest?: ShotgunRequest;
+  /**
+   * The raw HTTP response received from the server.
+   * Only populated on failed tests — omitted on passing tests to reduce noise.
+   */
+  resolvedResponse?: ShotgunResponse;
 }
 
 export interface RunSummary {
@@ -188,7 +232,36 @@ export interface RunSummary {
   passed: number;
   failed: number;
   needsBaseline: number;
+  dependencyFailed: number;
   results: TestResult[];
+}
+
+// ---------------------------------------------------------------------------
+// Session state — tracks what has executed within a single shotgun run
+// ---------------------------------------------------------------------------
+
+/**
+ * Maintained for the lifetime of a single `shotgun run` invocation.
+ * Ensures deps and fixtures execute at most once per session.
+ */
+export interface SessionState {
+  /**
+   * Canonical test IDs ("collection/test-name") → execution outcome.
+   * Tests not yet attempted are absent from the map.
+   */
+  testsRun: Map<string, 'passed' | 'failed'>;
+  /**
+   * Collection names whose setup hook (including setup_fixtures) has already run.
+   */
+  collectionsSetup: Set<string>;
+  /**
+   * Collection names whose teardown hook has already run.
+   */
+  collectionsTornDown: Set<string>;
+  /**
+   * Fixture names already executed this session (idempotency enforcement layer).
+   */
+  fixturesRun: Set<string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -209,6 +282,8 @@ export interface ShotgunConfig {
     expected?: string;
     runs?: string;
     scripts?: string;
+    /** Directory containing setup fixture YAML files. Default: tests/setup-fixtures */
+    setup_fixtures?: string;
   };
   ignore_fields_global?: string[];
   reporting?: {

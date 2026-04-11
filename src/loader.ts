@@ -14,6 +14,7 @@ import type {
   EnvVars,
   TestDefinition,
   CollectionDefinition,
+  SetupFixtureDefinition,
 } from './types.js';
 
 // ---------------------------------------------------------------------------
@@ -34,6 +35,7 @@ const ShotgunConfigSchema = z.object({
     expected: z.string().optional(),
     runs: z.string().optional(),
     scripts: z.string().optional(),
+    setup_fixtures: z.string().optional(),
   }).optional(),
   ignore_fields_global: z.array(z.string()).optional(),
   reporting: z.object({
@@ -114,6 +116,7 @@ const TestDefinitionSchema = z.object({
   description: z.string().optional(),
   collection: z.string().optional(),
   tags: z.array(z.string()).optional(),
+  dependsOn: z.array(z.string()).optional(),
   env: z.record(z.string()).optional(),
   pre: z.string().optional(),
   request: RequestDefSchema,
@@ -152,9 +155,52 @@ const CollectionDefSchema = z.object({
   description: z.string().optional(),
   order: z.array(z.string()).optional(),
   tags: z.array(z.string()).optional(),
+  setup_fixtures: z.array(z.string()).optional(),
   setup: z.string().optional(),
   teardown: z.string().optional(),
 });
+
+// ---------------------------------------------------------------------------
+// Setup fixture loader
+// ---------------------------------------------------------------------------
+
+const SetupFixtureSchema = z.object({
+  name: z.string().min(1, 'name is required'),
+  description: z.string().optional(),
+  script: z.string().min(1, 'script is required'),
+});
+
+export function loadSetupFixture(
+  fixtureName: string,
+  config: ShotgunConfig,
+  cwd: string = process.cwd(),
+): SetupFixtureDefinition {
+  const fixturesDir = join(cwd, config.paths?.setup_fixtures ?? 'tests/setup-fixtures');
+  const fixturePath = join(fixturesDir, `${fixtureName}.yaml`);
+
+  if (!existsSync(fixturePath)) {
+    throw new Error(
+      `Setup fixture not found: "${fixtureName}"\n` +
+      `  Expected: ${fixturePath}\n` +
+      `  Available fixtures in ${fixturesDir}:\n` +
+      listYamlBasenames(fixturesDir).map(n => `    - ${n}`).join('\n')
+    );
+  }
+
+  const raw = yaml.load(readFileSync(fixturePath, 'utf8'));
+  const result = SetupFixtureSchema.safeParse(raw);
+  if (!result.success) {
+    throw new Error(`Invalid fixture file ${fixturePath}:\n${formatZodError(result.error)}`);
+  }
+  return result.data as SetupFixtureDefinition;
+}
+
+function listYamlBasenames(dir: string): string[] {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter(f => f.endsWith('.yaml'))
+    .map(f => f.replace(/\.yaml$/, ''));
+}
 
 export function loadCollection(
   collectionName: string,
@@ -193,9 +239,12 @@ export function loadCollection(
 
   for (const entry of orderedEntries) {
     if (entry.includes('/')) {
-      // Cross-collection reference: "other-collection/test-name"
-      const [refCollection, refTest] = entry.split('/');
-      const refFile = join(collectionsDir, refCollection, `${refTest}.yaml`);
+      // Cross-collection reference: "other-collection/test-name" or "other-collection/test-name.yaml"
+      const slashIdx = entry.indexOf('/');
+      const refCollection = entry.slice(0, slashIdx);
+      const refTestRaw = entry.slice(slashIdx + 1);
+      const refTestBase = refTestRaw.endsWith('.yaml') ? refTestRaw.slice(0, -5) : refTestRaw;
+      const refFile = join(collectionsDir, refCollection, `${refTestBase}.yaml`);
       if (!existsSync(refFile)) {
         throw new Error(
           `Cross-collection test reference not found: "${entry}" → ${refFile}\n` +
@@ -205,10 +254,19 @@ export function loadCollection(
       resolvedOrdered.push(refFile);
       resolvedOrderedKeys.add(entry);
     } else {
-      // Local reference — only include if it actually exists in this collection dir
-      if (localTestFiles.includes(entry)) {
-        resolvedOrdered.push(join(collectionDir, `${entry}.yaml`));
-        resolvedOrderedKeys.add(entry);
+      // Local reference — strip .yaml extension if present (order entries may or may not include it)
+      const localBase = entry.endsWith('.yaml') ? entry.slice(0, -5) : entry;
+      if (localTestFiles.includes(localBase)) {
+        resolvedOrdered.push(join(collectionDir, `${localBase}.yaml`));
+        resolvedOrderedKeys.add(localBase);
+      } else {
+        // Warn loudly — a bare name that matches nothing is almost certainly a mistake
+        // (common cause: forgot the "collection/" prefix for a cross-collection ref)
+        throw new Error(
+          `Order entry not found: "${entry}" in collection "${collectionName}"\n` +
+          `  Expected file: ${join(collectionDir, `${localBase}.yaml`)}\n` +
+          `  If this is a cross-collection reference, use the form "other-collection/${localBase}" instead.`
+        );
       }
     }
   }
@@ -225,6 +283,120 @@ export function loadCollection(
 }
 
 // ---------------------------------------------------------------------------
+// Dependency graph builder
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolves a test reference string into a canonical "collection/test-name" ID
+ * and an absolute file path. If `ownerCollection` is provided, bare names
+ * (no slash) are resolved relative to that collection.
+ */
+export function resolveTestRef(
+  ref: string,
+  ownerCollection: string | undefined,
+  collectionsDir: string,
+): { canonicalId: string; filePath: string } {
+  let collectionName: string;
+  let testName: string;
+
+  if (ref.includes('/')) {
+    const slashIdx = ref.indexOf('/');
+    collectionName = ref.slice(0, slashIdx);
+    const raw = ref.slice(slashIdx + 1);
+    testName = raw.endsWith('.yaml') ? raw.slice(0, -5) : raw;
+  } else {
+    if (!ownerCollection) {
+      throw new Error(
+        `dependsOn ref "${ref}" is a bare test name but no ownerCollection was provided. ` +
+        `Use the "collection/test-name" form for cross-collection references.`
+      );
+    }
+    collectionName = ownerCollection;
+    testName = ref.endsWith('.yaml') ? ref.slice(0, -5) : ref;
+  }
+
+  const filePath = join(collectionsDir, collectionName, `${testName}.yaml`);
+  const canonicalId = `${collectionName}/${testName}`;
+  return { canonicalId, filePath };
+}
+
+/**
+ * Builds a topologically ordered list of canonical test IDs that must run
+ * before `startTestId`. Detects cycles and throws on first discovery.
+ *
+ * Returns the list in execution order (dependencies first, target last).
+ * The target itself is NOT included in the returned list — callers handle that.
+ */
+export function buildDependencyOrder(
+  startTestId: string,        // "collection/test-name"
+  collectionsDir: string,
+  env: EnvVars,
+): string[] {
+  const order: string[] = [];
+  const visited = new Set<string>();
+  const visiting = new Set<string>(); // cycle detection
+
+  function visit(testId: string): void {
+    if (visited.has(testId)) return; // already fully processed
+    if (visiting.has(testId)) {
+      throw new Error(
+        `Circular dependency detected involving "${testId}".\n` +
+        `  Current chain: ${[...visiting].join(' → ')} → ${testId}`
+      );
+    }
+
+    visiting.add(testId);
+
+    // Load this test's dependsOn list
+    const slashIdx = testId.indexOf('/');
+    const collectionName = testId.slice(0, slashIdx);
+    const testName = testId.slice(slashIdx + 1);
+    const filePath = join(collectionsDir, collectionName, `${testName}.yaml`);
+
+    if (!existsSync(filePath)) {
+      throw new Error(
+        `dependsOn references a test that does not exist: "${testId}"\n` +
+        `  Expected: ${filePath}`
+      );
+    }
+
+    const raw = readFileSync(filePath, 'utf8');
+    const parsed = yaml.load(interpolateEnv(raw, env)) as Record<string, unknown>;
+    const deps = (parsed?.dependsOn as string[] | undefined) ?? [];
+
+    for (const depRef of deps) {
+      const { canonicalId } = resolveTestRef(depRef, collectionName, collectionsDir);
+      visit(canonicalId);
+    }
+
+    visiting.delete(testId);
+    visited.add(testId);
+    order.push(testId);
+  }
+
+  // Process direct deps of the start test (not the start test itself)
+  const slashIdx = startTestId.indexOf('/');
+  const ownerCollection = startTestId.slice(0, slashIdx);
+  const testName = startTestId.slice(slashIdx + 1);
+  const filePath = join(collectionsDir, ownerCollection, `${testName}.yaml`);
+
+  if (!existsSync(filePath)) {
+    throw new Error(`Test file not found for dep resolution: "${startTestId}" → ${filePath}`);
+  }
+
+  const raw = readFileSync(filePath, 'utf8');
+  const parsed = yaml.load(interpolateEnv(raw, env)) as Record<string, unknown>;
+  const deps = (parsed?.dependsOn as string[] | undefined) ?? [];
+
+  for (const depRef of deps) {
+    const { canonicalId } = resolveTestRef(depRef, ownerCollection, collectionsDir);
+    visit(canonicalId);
+  }
+
+  return order; // execution order, target is excluded
+}
+
+// ---------------------------------------------------------------------------
 // Collection discovery
 // ---------------------------------------------------------------------------
 
@@ -236,6 +408,17 @@ export function discoverCollections(config: ShotgunConfig, cwd: string = process
     .filter(d => d.isDirectory() && !d.name.startsWith('_'))
     .map(d => d.name)
     .sort();
+}
+
+// ---------------------------------------------------------------------------
+// Helpers (additions)
+// ---------------------------------------------------------------------------
+
+/** Resolve a canonical test ID to the collection name portion */
+export function collectionFromCanonicalId(canonicalId: string): string {
+  const slashIdx = canonicalId.indexOf('/');
+  if (slashIdx < 0) throw new Error(`Invalid canonical test ID (no slash): "${canonicalId}"`);
+  return canonicalId.slice(0, slashIdx);
 }
 
 // ---------------------------------------------------------------------------

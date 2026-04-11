@@ -148,6 +148,18 @@ async function __httpCall(method: string, path: string, body?: unknown, _opts?: 
     const t = ctx.env.AUTH_TOKEN;
     headers['Authorization'] = t.startsWith('Bearer ') ? t : 'Bearer ' + t;
   }
+
+  // Always log the outgoing request so failures show full context
+  ctx.log(\`\${method} \${url}\`);
+  if (body !== undefined) {
+    ctx.log(\`  request body: \${JSON.stringify(body)}\`);
+  }
+  const safeHeaders = { ...headers };
+  if (safeHeaders['Authorization']) {
+    safeHeaders['Authorization'] = safeHeaders['Authorization'].replace(/(Bearer\\s+)(.{4}).*/, '$1$2…');
+  }
+  ctx.log(\`  request headers: \${JSON.stringify(safeHeaders)}\`);
+
   const res = await fetch(url, {
     method,
     headers,
@@ -156,6 +168,14 @@ async function __httpCall(method: string, path: string, body?: unknown, _opts?: 
   const text = await res.text();
   let parsed: unknown = text;
   try { parsed = JSON.parse(text); } catch { /* keep string */ }
+
+  // Log status; for non-2xx also dump the response body so failures are self-diagnosable
+  ctx.log(\`  → \${res.status}\`);
+  if (res.status < 200 || res.status >= 300) {
+    const snippet = text.length > 500 ? text.slice(0, 500) + '…' : text;
+    ctx.log(\`  response body: \${snippet}\`);
+  }
+
   return { status: res.status, body: parsed, raw: text, headers: Object.fromEntries(res.headers.entries()), duration: 0 };
 }
 

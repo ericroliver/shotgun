@@ -21,6 +21,7 @@
 12. [Collection Order Matters](#12-collection-order-matters)
 13. [ctx.http vs curl](#13-ctxhttp-vs-curl)
 14. [Testing Plans as Living Docs](#14-testing-plans-as-living-docs)
+15. [Tests Must Surface Bugs, Not Hide Them](#15-tests-must-surface-bugs-not-hide-them)
 
 ---
 
@@ -410,6 +411,73 @@ A testing plan records:
 - Suite membership (`smoke.yaml`, `gets-all.yaml`)
 
 **Read `testing-plans/README.md` before writing a new collection.** It contains shared conventions for auth wiring, workspace loading, stash patterns, etc.
+
+---
+
+## 15. Tests Must Surface Bugs, Not Hide Them
+
+**The entire purpose of API tests is to find bugs in the API.**
+
+A test that silently accepts error codes — 404, 405, 501, "known limitation" — is not a test. It is a green checkbox that lies to you. If you encounter a situation where you are tempted to write `if (s === 404) { ctx.log('acceptable'); return; }`, stop and ask: **is this actually acceptable, or is this a bug?**
+
+### The Smell
+
+These patterns all indicate a test that is masking a bug rather than catching one:
+
+```javascript
+// ❌ Silently swallowing a missing endpoint
+if (s === 404 || s === 405) {
+  ctx.log('endpoint not implemented — known limitation');
+  ctx.vars.thingId = null;
+  return; // test "passes"
+}
+
+// ❌ Logging instead of asserting
+ctx.log(`Unexpected status: ${s}`); // no ctx.assert = no failure
+
+// ❌ Accepting both success and failure as "OK"
+ctx.assert(s === 200 || s === 404, '...');
+// (after a CREATE that must have succeeded — 404 here IS a bug)
+```
+
+### The Rule
+
+**Every test must have exactly one definition of success, expressed with `ctx.assert`.**
+
+If an endpoint is genuinely not implemented yet, the test must **fail** until it is. A failing test is a standing bug report. A passing test with a `ctx.log('not supported')` is a lie that gets committed to the repo and forgotten.
+
+### When 4xx/5xx IS the correct expected status
+
+There are legitimate cases where a non-2xx code is the right assertion — but it must be **explicit and intentional**:
+
+```javascript
+// ✅ Confirmed API limitation — 405 is asserted, not swallowed
+ctx.assert(s === 405, `Expected 405 on DELETE /api/graph/links (confirmed API limitation — no DELETE endpoint), got ${s}`);
+
+// ✅ Post-delete confirmation — 404 is the proof the delete worked
+ctx.assert(s === 404, `Expected 404 confirming node is deleted, got ${s} — node may still exist`);
+```
+
+The difference: the assertion message explains **why** that code is expected, and any deviation **fails the test**.
+
+### When You Find a Missing Endpoint
+
+If you discover an endpoint is missing (e.g., no DELETE for a resource that should have one):
+
+1. **Write the test anyway** — assert 200/204, let it fail
+2. **Add a comment** at the top of the test: `# BUG: DELETE endpoint not yet implemented — see [ticket/issue ref]`
+3. **File a bug** with the API team
+4. **Do not** change the assertion to accept 404/405 — the failing test IS the bug report
+
+### Real Examples Fixed in This Repo
+
+| File | What was wrong | Fix |
+|------|---------------|-----|
+| `code/delete-pattern.yaml` | Accepted 404/405 as "known limitation" — masked missing DELETE endpoint | Now asserts 200/204 only |
+| `code/post-pattern-find.yaml` | Accepted 404 after pattern was just defined — masked a find bug | Now asserts 200 only |
+| `graph/modify-graph-node.yaml` | Hardcoded 405 as "expected" when PATCH is actually supported | Now asserts 200 with body inspection |
+| `graph/delete-graph-link.yaml` | No `ctx.assert` at all — any status code silently passed | Now asserts exactly 405 (confirmed limitation) |
+| `fs/get-fs-verify.yaml` | Post-script had dead `if (status === 404) { return; }` path that contradicted `status: 200` | Removed dead path; assert 200 only |
 
 ---
 

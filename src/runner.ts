@@ -2,17 +2,30 @@
  * src/runner.ts
  * Main test execution loop.
  * Orchestrates: load → pre-script → curl → assert → post-script → log
+ *
+ * New in this version:
+ *  - SessionState: deduplicates test execution and collection setup across a run
+ *  - setup_fixtures: runs named shared setup scripts before each collection's own setup
+ *  - dependsOn: automatically resolves and runs test dependencies before the target test
  */
 
 import { join, relative } from 'node:path';
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
-import { loadConfig, loadEnv, loadTestFile, loadCollection, discoverCollections, loadSuite } from './loader.js';
+import {
+  loadConfig, loadEnv, loadTestFile, loadCollection, discoverCollections,
+  loadSuite, loadSetupFixture, buildDependencyOrder, resolveTestRef,
+} from './loader.js';
 import { executeRequest, checkDependencies } from './executor.js';
 import { runAssertions, assertionsAllPassed, writeSnapshot } from './asserter.js';
 import { runScript } from './scripter.js';
 import { RunLogger } from './logger.js';
-import { printCollectionHeader, printTestStart, printTestResult, printSummary } from './reporter.js';
-import type { ShotgunRequest, ShotgunResponse, TestResult, TestTimings, EnvVars, RunSummary, ShotgunConfig } from './types.js';
+import {
+  printCollectionHeader, printTestStart, printTestResult, printSummary,
+} from './reporter.js';
+import type {
+  ShotgunRequest, ShotgunResponse, TestResult, TestTimings, EnvVars,
+  RunSummary, ShotgunConfig, SessionState,
+} from './types.js';
 
 export interface RunOptions {
   env?: string;
@@ -42,27 +55,49 @@ export async function runTests(opts: RunOptions): Promise<RunSummary> {
   }
 
   const scriptsDir = join(cwd, config.paths?.scripts ?? 'scripts');
+  const testsDir = join(cwd, config.paths?.tests ?? 'tests');
+  const collectionsDir = join(testsDir, 'collections');
   const logger = new RunLogger(config, cwd);
   const startedAt = new Date().toISOString();
 
   // Shared vars across entire run
   const vars: Record<string, unknown> = {};
 
-  // Determine which collections to run
-  let collectionNames: string[] = [];
+  // Session state — deduplicates test runs, collection setups, fixture executions
+  const session: SessionState = {
+    testsRun: new Map(),
+    collectionsSetup: new Set(),
+    collectionsTornDown: new Set(),
+    fixturesRun: new Set(),
+  };
+
+  // Shared opts passed to helpers
+  const sharedOpts: SharedRunOpts = {
+    env, vars, baseUrl, config, scriptsDir, cwd, collectionsDir,
+    snapshotMode: opts.snapshotMode, session, logger,
+  };
+
+  // -------------------------------------------------------------------------
+  // Single file mode — run outside collection context
+  // -------------------------------------------------------------------------
 
   if (opts.file) {
-    // Single file mode — run outside collection context
-    const result = await runSingleFile(opts.file, { env, vars, baseUrl, config, scriptsDir, cwd, snapshotMode: opts.snapshotMode });
+    const result = await runSingleFile(opts.file, sharedOpts);
     logger.recordTest(result, 'file');
     const summary = logger.finalize({ env: envName, startedAt });
     printSummary(summary);
     return summary;
-  } else if (opts.suite) {
+  }
+
+  // -------------------------------------------------------------------------
+  // Determine collection plan
+  // -------------------------------------------------------------------------
+
+  let collectionNames: string[] = [];
+
+  if (opts.suite) {
     const suite = loadSuite(opts.suite, config, cwd);
     collectionNames = suite.collections;
-    // Apply suite-level tags as the active tag filter when no explicit --tags flag was given.
-    // This ensures a suite like smoke (tags: [smoke]) only runs tests carrying that tag.
     if (!opts.tags?.length && suite.tags?.length) {
       opts.tags = suite.tags;
     }
@@ -72,57 +107,40 @@ export async function runTests(opts: RunOptions): Promise<RunSummary> {
     collectionNames = discoverCollections(config, cwd);
   }
 
+  // -------------------------------------------------------------------------
   // Run each collection
+  // -------------------------------------------------------------------------
+
   for (const collectionName of collectionNames) {
     const { definition, testFiles } = loadCollection(collectionName, config, cwd);
 
-    // Tag filter at collection level.
-    // When running a suite, skip this check — the suite already enumerates its collections
-    // explicitly, and its tags: field is a test-level filter, not a collection filter.
-    // When running with --tags from the CLI (no suite), skip entire collections that have
-    // no overlapping tags with the requested tags.
+    // Tag filter at collection level
     if (!opts.suite && opts.tags?.length && !opts.tags.some(t => definition.tags?.includes(t))) {
       continue;
     }
 
     printCollectionHeader(definition.name ?? collectionName);
 
-    // Merge collection-level env overrides (none in this design, but vars is shared)
-    // Run collection setup hook
-    if (definition.setup) {
-      let setupError: string | null = null;
-      try {
-        const dummyRequest = makeDummyRequest(baseUrl);
-        const result = await runScript(definition.setup, {
-          env, vars, request: dummyRequest, scriptsDir,
-        });
-        applyVarMutations(vars, result.varMutations);
-        if (!result.passed) {
-          setupError = result.error ?? 'collection setup failed';
-        }
-      } catch (err) {
-        setupError = String(err);
-      }
+    // Run collection setup (includes setup_fixtures), deduped by session
+    const setupOk = await ensureCollectionSetup(collectionName, definition, sharedOpts);
 
-      if (setupError !== null) {
-        console.error(`Collection setup failed: ${setupError}`);
-        // Fail all tests in collection
-        for (const file of testFiles) {
-          const test = loadTestFile(file, env);
-          const failed: TestResult = {
-            name: test.name,
-            file,
-            status: 'failed',
-            durationMs: 0,
-            assertions: {},
-            error: `Collection setup failed: ${setupError}`,
-          };
-          logger.recordTest(failed, collectionName);
-          printTestStart(test.name, test.request.method, test.request.path);
-          printTestResult(failed);
-        }
-        continue;
+    if (!setupOk) {
+      // Fail all tests in this collection
+      for (const file of testFiles) {
+        const test = loadTestFile(file, env);
+        const failed: TestResult = {
+          name: test.name,
+          file,
+          status: 'failed',
+          durationMs: 0,
+          assertions: {},
+          error: `Collection setup failed for "${collectionName}"`,
+        };
+        logger.recordTest(failed, collectionName);
+        printTestStart(test.name, test.request.method, test.request.path);
+        printTestResult(failed);
       }
+      continue;
     }
 
     // Run each test
@@ -136,35 +154,51 @@ export async function runTests(opts: RunOptions): Promise<RunSummary> {
 
       printTestStart(test.name, test.request.method, test.request.path);
 
-      const result = await runSingleTest(test, file, {
-        env: { ...env, ...(test.env ?? {}) },
-        vars,
-        baseUrl,
-        config,
-        scriptsDir,
-        cwd,
-        collectionName,
-        snapshotMode: opts.snapshotMode,
-      });
+      // Resolve the canonical ID from the actual file path — handles cross-collection
+      // refs stored in _failures_ / _debug_ collections where collectionName is the
+      // container collection but the file lives under a different collection dir.
+      const canonicalId = relative(collectionsDir, file).replace(/\.yaml$/, '');
+      const actualCollection = canonicalId.includes('/')
+        ? canonicalId.slice(0, canonicalId.indexOf('/'))
+        : collectionName;
+
+      // Run dependsOn chain first (session-deduped)
+      const depResult = await resolveDependencies(
+        canonicalId,
+        actualCollection,
+        sharedOpts,
+      );
+
+      let result: TestResult;
+
+      if (depResult.failedDep) {
+        // A dependency failed — mark this test as dependency_failed
+        result = {
+          name: test.name,
+          file,
+          status: 'dependency_failed',
+          durationMs: 0,
+          assertions: {},
+          error: `Dependency "${depResult.failedDep}" failed`,
+          failedDependency: depResult.failedDep,
+        };
+      } else {
+        result = await runSingleTest(test, file, {
+          ...sharedOpts,
+          env: { ...env, ...(test.env ?? {}) },
+          collectionName: actualCollection,
+        });
+
+        // Register in session
+        session.testsRun.set(canonicalId, result.status === 'passed' ? 'passed' : 'failed');
+      }
 
       logger.recordTest(result, collectionName);
       printTestResult(result);
     }
 
-    // Run collection teardown (even on failures)
-    if (definition.teardown) {
-      try {
-        const dummyRequest = makeDummyRequest(baseUrl);
-        const result = await runScript(definition.teardown, {
-          env, vars, request: dummyRequest, scriptsDir,
-        });
-        if (!result.passed) {
-          console.warn(`  ${c.yellow}Teardown warning: ${result.error}${c.reset}`);
-        }
-      } catch (err) {
-        console.warn(`  Teardown threw (non-fatal): ${err}`);
-      }
-    }
+    // Run collection teardown (even on failures), deduped by session
+    await ensureCollectionTeardown(collectionName, definition, sharedOpts);
   }
 
   const summary = logger.finalize({
@@ -177,7 +211,7 @@ export async function runTests(opts: RunOptions): Promise<RunSummary> {
   printSummary(summary);
 
   // Auto-update the _failures_ collection whenever any test failed
-  if (summary.failed > 0) {
+  if (summary.failed > 0 || summary.dependencyFailed > 0) {
     updateFailuresCollection(summary.results, config, cwd);
   }
 
@@ -185,22 +219,231 @@ export async function runTests(opts: RunOptions): Promise<RunSummary> {
 }
 
 // ---------------------------------------------------------------------------
-// Single test execution
+// Shared opts type (internal)
 // ---------------------------------------------------------------------------
 
-interface SingleTestOpts {
+interface SharedRunOpts {
   env: EnvVars;
   vars: Record<string, unknown>;
   baseUrl: string;
   config: ShotgunConfig;
   scriptsDir: string;
   cwd: string;
-  collectionName?: string;
+  collectionsDir: string;
   snapshotMode?: boolean;
+  session: SessionState;
+  logger: RunLogger;
+}
+
+// ---------------------------------------------------------------------------
+// Collection setup / teardown (session-deduped)
+// ---------------------------------------------------------------------------
+
+/**
+ * Runs setup_fixtures then collection setup — at most once per session.
+ * Returns true if setup succeeded (or was already done), false on failure.
+ */
+async function ensureCollectionSetup(
+  collectionName: string,
+  definition: { setup_fixtures?: string[]; setup?: string; name?: string },
+  opts: SharedRunOpts,
+): Promise<boolean> {
+  if (opts.session.collectionsSetup.has(collectionName)) return true;
+
+  const dummyRequest = makeDummyRequest(opts.baseUrl);
+
+  // 1. Run setup_fixtures in order
+  if (definition.setup_fixtures?.length) {
+    for (const fixtureName of definition.setup_fixtures) {
+      // Fixture-level idempotency
+      if (opts.session.fixturesRun.has(fixtureName)) {
+        console.log(`  ⊙ fixture "${fixtureName}" already run this session — skipping`);
+        continue;
+      }
+
+      let fixture;
+      try {
+        fixture = loadSetupFixture(fixtureName, opts.config, opts.cwd);
+      } catch (err) {
+        console.error(`  ✗ Failed to load setup fixture "${fixtureName}": ${err}`);
+        return false;
+      }
+
+      try {
+        const result = await runScript(fixture.script, {
+          env: opts.env,
+          vars: opts.vars,
+          request: dummyRequest,
+          scriptsDir: opts.scriptsDir,
+        });
+        applyVarMutations(opts.vars, result.varMutations);
+        if (!result.passed) {
+          console.error(`  ✗ Setup fixture "${fixtureName}" failed: ${result.error}`);
+          return false;
+        }
+        opts.session.fixturesRun.add(fixtureName);
+        console.log(`  ✓ fixture "${fixtureName}" complete`);
+      } catch (err) {
+        console.error(`  ✗ Setup fixture "${fixtureName}" threw: ${err}`);
+        return false;
+      }
+    }
+  }
+
+  // 2. Run collection's own setup script
+  if (definition.setup) {
+    try {
+      const result = await runScript(definition.setup, {
+        env: opts.env,
+        vars: opts.vars,
+        request: dummyRequest,
+        scriptsDir: opts.scriptsDir,
+      });
+      applyVarMutations(opts.vars, result.varMutations);
+      if (!result.passed) {
+        console.error(`Collection setup failed: ${result.error}`);
+        return false;
+      }
+    } catch (err) {
+      console.error(`Collection setup threw: ${err}`);
+      return false;
+    }
+  }
+
+  opts.session.collectionsSetup.add(collectionName);
+  return true;
+}
+
+async function ensureCollectionTeardown(
+  collectionName: string,
+  definition: { teardown?: string },
+  opts: SharedRunOpts,
+): Promise<void> {
+  if (opts.session.collectionsTornDown.has(collectionName)) return;
+  if (!definition.teardown) {
+    opts.session.collectionsTornDown.add(collectionName);
+    return;
+  }
+
+  try {
+    const dummyRequest = makeDummyRequest(opts.baseUrl);
+    const result = await runScript(definition.teardown, {
+      env: opts.env,
+      vars: opts.vars,
+      request: dummyRequest,
+      scriptsDir: opts.scriptsDir,
+    });
+    if (!result.passed) {
+      console.warn(`  ${c.yellow}Teardown warning (${collectionName}): ${result.error}${c.reset}`);
+    }
+  } catch (err) {
+    console.warn(`  Teardown threw (non-fatal, ${collectionName}): ${err}`);
+  }
+
+  opts.session.collectionsTornDown.add(collectionName);
+}
+
+// ---------------------------------------------------------------------------
+// Dependency resolution
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolves and executes the full dependsOn chain for a test.
+ * Returns { failedDep } if any dep failed, or { failedDep: null } if all passed.
+ *
+ * Each dep runs at most once per session (session.testsRun deduplication).
+ * If a dep is in a different collection, that collection's setup runs first.
+ */
+async function resolveDependencies(
+  targetCanonicalId: string,
+  ownerCollection: string,
+  opts: SharedRunOpts,
+): Promise<{ failedDep: string | null }> {
+  let depOrder: string[];
+  try {
+    depOrder = buildDependencyOrder(targetCanonicalId, opts.collectionsDir, opts.env);
+  } catch (err) {
+    // Cycle or missing dep — surface as failure
+    return { failedDep: `[dependency resolution error] ${err}` };
+  }
+
+  if (depOrder.length === 0) return { failedDep: null };
+
+  for (const depId of depOrder) {
+    // Already ran this session?
+    const priorOutcome = opts.session.testsRun.get(depId);
+    if (priorOutcome === 'passed') continue;
+    if (priorOutcome === 'failed') {
+      return { failedDep: depId };
+    }
+
+    // Need to run it — ensure its collection setup is done first
+    const depCollection = depId.slice(0, depId.indexOf('/'));
+    const depTestName = depId.slice(depId.indexOf('/') + 1);
+    const depFile = join(opts.collectionsDir, depCollection, `${depTestName}.yaml`);
+
+    if (depCollection !== ownerCollection) {
+      // Load and setup the dep's collection
+      let depDefinition;
+      try {
+        const loaded = loadCollection(depCollection, opts.config, opts.cwd);
+        depDefinition = loaded.definition;
+      } catch (err) {
+        opts.session.testsRun.set(depId, 'failed');
+        return { failedDep: depId };
+      }
+
+      const setupOk = await ensureCollectionSetup(depCollection, depDefinition, opts);
+      if (!setupOk) {
+        opts.session.testsRun.set(depId, 'failed');
+        return { failedDep: depId };
+      }
+    }
+
+    // Execute the dependency test
+    const depTest = loadTestFile(depFile, opts.env);
+    printTestStart(depTest.name, depTest.request.method, depTest.request.path);
+
+    const depResult = await runSingleTest(depTest, depFile, {
+      ...opts,
+      env: { ...opts.env, ...(depTest.env ?? {}) },
+      collectionName: depCollection,
+    });
+
+    opts.logger.recordTest(depResult, depCollection);
+    printTestResult(depResult);
+
+    const outcome = depResult.status === 'passed' ? 'passed' : 'failed';
+    opts.session.testsRun.set(depId, outcome);
+
+    if (outcome === 'failed') {
+      return { failedDep: depId };
+    }
+  }
+
+  return { failedDep: null };
+}
+
+// ---------------------------------------------------------------------------
+// Single test execution
+// ---------------------------------------------------------------------------
+
+interface SingleTestOpts extends SharedRunOpts {
+  collectionName?: string;
 }
 
 async function runSingleTest(
-  test: { name: string; request: { method: string; path: string }; pre?: string; post?: string; response?: unknown; tags?: string[]; collection?: string; env?: EnvVars; description?: string },
+  test: {
+    name: string;
+    request: { method: string; path: string };
+    pre?: string;
+    post?: string;
+    response?: unknown;
+    tags?: string[];
+    collection?: string;
+    env?: EnvVars;
+    description?: string;
+  },
   file: string,
   opts: SingleTestOpts,
 ): Promise<TestResult> {
@@ -303,6 +546,7 @@ async function runSingleTest(
   const durationMs = Date.now() - startMs;
   const curlMs = response.curlMs;
   const allPassed = assertionsAllPassed(assertions);
+  const finalStatus = needsBaseline ? 'needs_baseline' : allPassed ? 'passed' : 'failed';
 
   const timings: TestTimings = {
     curlMs,
@@ -315,18 +559,20 @@ async function runSingleTest(
   return {
     name: test.name,
     file,
-    status: needsBaseline ? 'needs_baseline' : allPassed ? 'passed' : 'failed',
+    status: finalStatus,
     httpStatus: response.status,
     durationMs,
     timings,
     assertions,
     scriptOutput: scriptOutput.length ? scriptOutput : undefined,
+    // Attach full request + response on failures so the reporter can dump diagnostics
+    ...(finalStatus === 'failed' ? { resolvedRequest: request, resolvedResponse: response } : {}),
   };
 }
 
 async function runSingleFile(
   file: string,
-  opts: SingleTestOpts,
+  opts: SharedRunOpts,
 ): Promise<TestResult> {
   const test = loadTestFile(file, opts.env);
   return runSingleTest(test, file, opts);
@@ -354,7 +600,7 @@ function updateFailuresCollection(
   const failuresDir = join(collectionsDir, '_failures_');
 
   const failedRefs = results
-    .filter(r => r.status === 'failed')
+    .filter(r => r.status === 'failed' || r.status === 'dependency_failed')
     .map(r => {
       // r.file is an absolute path like: …/collections/some-coll/test-name.yaml
       // We want: "some-coll/test-name"
@@ -381,6 +627,9 @@ function updateFailuresCollection(
 #
 # lets you quickly re-execute only the tests that broke in the previous run
 # without having to remember which ones they were.
+#
+# Tests with \`dependsOn\` declared will have their dependencies automatically
+# satisfied when re-run — even from this failures collection.
 #
 # The setup/teardown scripts are intentionally empty — each referenced test
 # brings its own collection's setup via the cross-collection reference

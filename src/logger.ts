@@ -29,6 +29,10 @@ export class RunLogger {
   recordTest(result: TestResult, collectionName: string): void {
     this.results.push(result);
 
+    // Don't write a log file for passing tests (unless explicitly requested)
+    // or for dependency_failed — those are secondary signals, not root causes.
+    // The root-cause failing test already has its own log.
+    if (result.status === 'dependency_failed') return;
     if (!this.config.reporting?.save_passing_logs && result.status === 'passed') {
       return;
     }
@@ -51,6 +55,7 @@ export class RunLogger {
     const passed = this.results.filter(r => r.status === 'passed').length;
     const failed = this.results.filter(r => r.status === 'failed').length;
     const needsBaseline = this.results.filter(r => r.status === 'needs_baseline').length;
+    const dependencyFailed = this.results.filter(r => r.status === 'dependency_failed').length;
 
     const summary: RunSummary = {
       runId: this.runId,
@@ -64,6 +69,7 @@ export class RunLogger {
       passed,
       failed,
       needsBaseline,
+      dependencyFailed,
       results: this.results,
     };
 

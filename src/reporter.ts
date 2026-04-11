@@ -59,19 +59,85 @@ export function printTestResult(result: TestResult): void {
       if (result.error) {
         console.log(`    ${c.red}Error: ${result.error}${c.reset}`);
       }
+
+      // ── Request / Response telemetry ────────────────────────────────────
+      if (result.resolvedRequest || result.resolvedResponse) {
+        console.log(`    ${c.dim}── request ────────────────────────────────────${c.reset}`);
+        if (result.resolvedRequest) {
+          const req = result.resolvedRequest;
+          console.log(`    ${c.dim}│ ${c.reset}${c.bold}${req.method}${c.reset} ${req.url}`);
+          // Headers — redact Authorization value
+          const headers = { ...req.headers };
+          if (headers['Authorization']) {
+            headers['Authorization'] = headers['Authorization'].replace(/(Bearer\s+)(.{4}).*/, '$1$2…');
+          }
+          if (Object.keys(headers).length) {
+            for (const [k, v] of Object.entries(headers)) {
+              console.log(`    ${c.dim}│   ${k}: ${v}${c.reset}`);
+            }
+          }
+          if (req.params && Object.keys(req.params).length) {
+            console.log(`    ${c.dim}│   query: ${JSON.stringify(req.params)}${c.reset}`);
+          }
+          if (req.body !== undefined) {
+            const bodyStr = typeof req.body === 'string'
+              ? req.body
+              : JSON.stringify(req.body, null, 2);
+            const snippet = bodyStr.length > 800 ? bodyStr.slice(0, 800) + '…' : bodyStr;
+            console.log(`    ${c.dim}│   body: ${snippet}${c.reset}`);
+          }
+        }
+
+        if (result.resolvedResponse) {
+          const res = result.resolvedResponse;
+          const statusColor = res.status >= 400 ? c.red : res.status >= 300 ? c.yellow : c.green;
+          console.log(`    ${c.dim}── response ───────────────────────────────────${c.reset}`);
+          console.log(`    ${c.dim}│ ${c.reset}${statusColor}${c.bold}${res.status}${c.reset}  ${c.dim}${res.curlMs}ms${c.reset}`);
+          // Response headers
+          if (Object.keys(res.headers).length) {
+            for (const [k, v] of Object.entries(res.headers)) {
+              console.log(`    ${c.dim}│   ${k}: ${v}${c.reset}`);
+            }
+          }
+          // Response body
+          const rawBody = typeof res.raw === 'string' ? res.raw : JSON.stringify(res.body);
+          const bodySnippet = rawBody.length > 1200 ? rawBody.slice(0, 1200) + '…' : rawBody;
+          if (bodySnippet.trim()) {
+            console.log(`    ${c.dim}│   body:${c.reset}`);
+            for (const line of bodySnippet.split('\n')) {
+              console.log(`    ${c.dim}│     ${line}${c.reset}`);
+            }
+          }
+        }
+        console.log(`    ${c.dim}──────────────────────────────────────────────${c.reset}`);
+      }
       break;
     }
     case 'needs_baseline':
       process.stdout.write(`${c.yellow}NEEDS BASELINE${c.reset}\n`);
       console.log(`    ${c.yellow}Run: shotgun snapshot to capture baseline${c.reset}`);
       break;
+    case 'dependency_failed':
+      // Concise: one line names the blocking dep; full detail is on the dep's own output line
+      process.stdout.write(`${c.yellow}SKIPPED${c.reset} ${c.dim}(dependency failed)${c.reset}\n`);
+      if (result.failedDependency) {
+        console.log(`    ${c.dim}↳ blocked by: ${result.failedDependency}${c.reset}`);
+      }
+      break;
   }
 
-  // Print script output in debug mode
-  if (process.env.SHOTGUN_DEBUG && result.scriptOutput?.length) {
-    for (const msg of result.scriptOutput) {
-      console.log(`    ${c.dim}[script] ${msg}${c.reset}`);
+  // Always show script output for failed tests; gate on SHOTGUN_DEBUG for passing
+  const showScriptOutput =
+    result.status === 'failed'
+      ? result.scriptOutput?.length
+      : process.env.SHOTGUN_DEBUG && result.scriptOutput?.length;
+
+  if (showScriptOutput) {
+    console.log(`    ${c.dim}── script output ─────────────────────────${c.reset}`);
+    for (const msg of result.scriptOutput!) {
+      console.log(`    ${c.dim}│ ${msg}${c.reset}`);
     }
+    console.log(`    ${c.dim}─────────────────────────────────────────${c.reset}`);
   }
 }
 
@@ -115,7 +181,7 @@ export function printCollectionHeader(name: string): void {
 // ---------------------------------------------------------------------------
 
 export function printSummary(summary: RunSummary): void {
-  const { total, passed, failed, needsBaseline, durationMs } = summary;
+  const { total, passed, failed, needsBaseline, dependencyFailed, durationMs } = summary;
 
   console.log(`\n${'─'.repeat(60)}`);
   console.log(
@@ -125,13 +191,43 @@ export function printSummary(summary: RunSummary): void {
   );
   console.log('');
 
-  if (failed > 0) {
-    console.log(`  ${c.red}${c.bold}✗ ${failed} failed${c.reset}  ${c.green}${passed} passed${c.reset}  ${c.dim}${total} total${c.reset}`);
+  const hasProblem = failed > 0 || dependencyFailed > 0;
+
+  if (hasProblem) {
+    // Build a concise status line: only show non-zero counts
+    const parts: string[] = [];
+    if (failed > 0) parts.push(`${c.red}${c.bold}✗ ${failed} failed${c.reset}`);
+    if (dependencyFailed > 0) parts.push(`${c.yellow}${dependencyFailed} skipped (dep failed)${c.reset}`);
+    parts.push(`${c.green}${passed} passed${c.reset}`);
+    parts.push(`${c.dim}${total} total${c.reset}`);
+    console.log(`  ${parts.join('  ')}`);
     console.log('');
-    for (const result of summary.results) {
-      if (result.status === 'failed') {
+
+    // List root-cause failures (not dependency_failed — those are secondary)
+    const rootFailures = summary.results.filter(r => r.status === 'failed');
+    if (rootFailures.length > 0) {
+      console.log(`  ${c.red}Root cause failures:${c.reset}`);
+      for (const result of rootFailures) {
         const rel = path.relative(process.cwd(), result.file);
-        console.log(`    ${c.red}✗${c.reset} ${c.dim}${rel}${c.reset}`);
+        console.log(`    ${c.red}✗${c.reset} ${result.name} ${c.dim}(${rel})${c.reset}`);
+      }
+    }
+
+    // Summarize dependency-blocked tests separately — grouped by blocking dep
+    if (dependencyFailed > 0) {
+      console.log('');
+      console.log(`  ${c.yellow}Blocked by failing dependency:${c.reset}`);
+      const byDep = new Map<string, string[]>();
+      for (const r of summary.results.filter(res => res.status === 'dependency_failed')) {
+        const dep = r.failedDependency ?? '(unknown)';
+        if (!byDep.has(dep)) byDep.set(dep, []);
+        byDep.get(dep)!.push(r.name);
+      }
+      for (const [dep, names] of byDep) {
+        console.log(`    ${c.dim}${dep}${c.reset} blocked:`);
+        for (const n of names) {
+          console.log(`      ${c.yellow}⊙${c.reset} ${n}`);
+        }
       }
     }
   } else if (needsBaseline > 0) {
@@ -167,9 +263,13 @@ function printPrettyReport(summary: RunSummary): void {
   console.log('');
 
   for (const result of summary.results) {
-    const icon = result.status === 'passed'        ? `${c.green}✓${c.reset}`
-      : result.status === 'failed'                 ? `${c.red}✗${c.reset}`
-      : /* needs_baseline */                         `${c.yellow}○${c.reset}`;
+    const icon = result.status === 'passed'
+      ? `${c.green}✓${c.reset}`
+      : result.status === 'failed'
+        ? `${c.red}✗${c.reset}`
+        : result.status === 'dependency_failed'
+          ? `${c.yellow}⊙${c.reset}`
+          : /* needs_baseline */ `${c.yellow}○${c.reset}`;
 
     const dur = `${c.dim}${result.durationMs}ms${c.reset}`;
     console.log(`  ${icon} ${result.name} ${dur}`);
@@ -179,6 +279,8 @@ function printPrettyReport(summary: RunSummary): void {
       for (const r of reasons) {
         console.log(`      ${c.red}${r}${c.reset}`);
       }
+    } else if (result.status === 'dependency_failed' && result.failedDependency) {
+      console.log(`      ${c.dim}↳ blocked by: ${result.failedDependency}${c.reset}`);
     }
   }
   console.log('');
@@ -190,11 +292,19 @@ function printTap(summary: RunSummary): void {
   let i = 1;
   for (const result of summary.results) {
     const ok = result.status === 'passed';
-    console.log(`${ok ? 'ok' : 'not ok'} ${i++} - ${result.name}`);
-    if (!ok && result.error) {
-      console.log(`  ---`);
-      console.log(`  message: '${result.error}'`);
-      console.log(`  ...`);
+    // TAP: dependency_failed tests are reported as "not ok" with a SKIP directive
+    // so CI parsers show them as skipped rather than failures, preserving the
+    // root-cause/impact distinction.
+    if (result.status === 'dependency_failed') {
+      const dep = result.failedDependency ?? 'unknown dependency';
+      console.log(`not ok ${i++} - ${result.name} # SKIP blocked by failing dependency: ${dep}`);
+    } else {
+      console.log(`${ok ? 'ok' : 'not ok'} ${i++} - ${result.name}`);
+      if (!ok && result.error) {
+        console.log(`  ---`);
+        console.log(`  message: '${result.error}'`);
+        console.log(`  ...`);
+      }
     }
   }
 }
