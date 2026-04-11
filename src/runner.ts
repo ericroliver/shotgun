@@ -371,13 +371,13 @@ function updateFailuresCollection(
 
   const yaml = `# _failures_/_collection.yaml
 #
-# Auto-managed by the banger runner.
+# Auto-managed by the shotgun runner.
 #
-# After any run that contains failures, banger rewrites the \`order\` list below
+# After any run that contains failures, shotgun rewrites the \`order\` list below
 # with the collection/test references of every test that failed.  Re-running
 # this collection with:
 #
-#   banger run --collection _failures_
+#   shotgun run --collection _failures_
 #
 # lets you quickly re-execute only the tests that broke in the previous run
 # without having to remember which ones they were.
@@ -396,7 +396,7 @@ function updateFailuresCollection(
 name: Failures
 description: >
   Automatically populated with the tests that failed in the most recent run.
-  Re-run with \`banger run --collection _failures_\` to replay only failures.
+  Re-run with \`shotgun run --collection _failures_\` to replay only failures.
 
 order:
 ${orderLines}

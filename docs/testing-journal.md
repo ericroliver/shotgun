@@ -1,6 +1,6 @@
-# Banger Testing Journal
+# Shotgun Testing Journal
 
-> Tips, tricks, patterns, and hard-won lessons for writing banger tests.
+> Tips, tricks, patterns, and hard-won lessons for writing shotgun tests.
 > Add to this as you discover things — don't let the knowledge die in Slack or a terminal window.
 
 ---
@@ -119,7 +119,7 @@ response:
     - "**.requestId"
 ```
 
-**When baseline doesn't exist yet:** The test is marked `needs_baseline` — not a failure. Run `banger snapshot` to capture it, commit the `expected/` file, then subsequent runs will diff against it.
+**When baseline doesn't exist yet:** The test is marked `needs_baseline` — not a failure. Run `shotgun snapshot` to capture it, commit the `expected/` file, then subsequent runs will diff against it.
 
 ---
 
@@ -188,11 +188,11 @@ Any test data your suite creates should use a timestamp-based unique key. This p
 ```javascript
 // _collection.yaml setup:
 const ts = Date.now();
-ctx.vars.testNodePathA = `banger-test/node-a-${ts}`;
-ctx.vars.testNodePathB = `banger-test/node-b-${ts}`;
+ctx.vars.testNodePathA = `shotgun-test/node-a-${ts}`;
+ctx.vars.testNodePathB = `shotgun-test/node-b-${ts}`;
 ```
 
-**Namespace your test data.** Use a consistent prefix like `banger-test/` so you can identify and manually purge test data if needed.
+**Namespace your test data.** Use a consistent prefix like `shotgun-test/` so you can identify and manually purge test data if needed.
 
 ---
 
@@ -224,7 +224,7 @@ if (wsName) {
 
 ### Don't encode path separators
 
-If the API uses real path segments as resource identifiers (e.g., `banger-test/node-a-123`), do **not** `encodeURIComponent` the full thing — that would encode the `/` and break the route:
+If the API uses real path segments as resource identifiers (e.g., `shotgun-test/node-a-123`), do **not** `encodeURIComponent` the full thing — that would encode the `/` and break the route:
 
 ```javascript
 // ✅ Correct — real slashes preserved
@@ -234,7 +234,7 @@ ctx.request.path = `/api/graph/nodes/${ctx.vars.createdNodePathA}`;
 ctx.request.path = `/api/graph/nodes/${encodeURIComponent(ctx.vars.createdNodePathA)}`;
 ```
 
-**Lesson learned from the graph API:** the node path `banger-test/node-a-123` is used as-is in the URL, e.g. `GET /api/graph/nodes/banger-test/node-a-123`.
+**Lesson learned from the graph API:** the node path `shotgun-test/node-a-123` is used as-is in the URL, e.g. `GET /api/graph/nodes/shotgun-test/node-a-123`.
 
 ---
 
@@ -335,10 +335,10 @@ curl -s "${BASE_URL}/api/graph/nodes" | jq .
 # POST
 curl -s -X POST "${BASE_URL}/api/graph/nodes" \
   -H "Content-Type: application/json" \
-  -d '{"path":"banger-test/probe","contentType":"text/plain","content":"test","persist":"file"}' | jq .
+  -d '{"path":"shotgun-test/probe","contentType":"text/plain","content":"test","persist":"file"}' | jq .
 
 # PATCH
-curl -s -X PATCH "${BASE_URL}/api/graph/nodes/banger-test/probe" \
+curl -s -X PATCH "${BASE_URL}/api/graph/nodes/shotgun-test/probe" \
   -H "Content-Type: application/json" \
   -d '{"title":"Updated"}' | jq .
 ```
@@ -389,7 +389,7 @@ Tests not listed in `order` still run, but at an unspecified position after the 
 | | `ctx.http.*` | `curl` (via request) |
 |---|---|---|
 | Used in | `pre`, `post`, `setup`, `teardown` scripts | The actual test request |
-| Returns | `BangerResponse` object | Captured by executor |
+| Returns | `ShotgunResponse` object | Captured by executor |
 | Assertions run | No | Yes (status, shape, snapshot) |
 | Shows in report | No (side effect only) | Yes |
 | Use for | Setup calls, teardown cleanup, data seeding | The thing you're testing |
