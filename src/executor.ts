@@ -102,6 +102,8 @@ export async function executeRequest(
     // Parse stdout: response headers + sentinel line with status + time
     const sentinelMatch = stdout.match(/__SHOTGUN_STATUS__(\d+)__SHOTGUN_TIME__([\d.]+)/);
     const status = sentinelMatch ? parseInt(sentinelMatch[1], 10) : 0;
+    // curl reports time_total in fractional seconds — convert to ms
+    const curlMs = sentinelMatch ? Math.round(parseFloat(sentinelMatch[2]) * 1000) : duration;
 
     // Parse response headers from stdout (everything before blank line)
     const responseHeaders = parseResponseHeaders(stdout);
@@ -131,6 +133,7 @@ export async function executeRequest(
       body,
       raw,
       duration,
+      curlMs,
     };
   } finally {
     cleanup(bodyOutFile);

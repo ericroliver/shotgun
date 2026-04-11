@@ -89,6 +89,8 @@ export interface ShotgunResponse {
   body: unknown;
   raw: string;
   duration: number;
+  /** Time reported by curl's own %{time_total} (ms) */
+  curlMs: number;
 }
 
 export type HttpMethod = {
@@ -149,12 +151,26 @@ export interface AssertionResults {
 
 export type TestResultStatus = 'passed' | 'failed' | 'needs_baseline';
 
+export interface TestTimings {
+  /** Wall-clock time for curl to complete, per curl's own %{time_total} */
+  curlMs: number;
+  /** Time spent in jq shape checks + snapshot diff */
+  assertMs: number;
+  /** Time spent running the pre-script (tsx transpile + execute) */
+  preMs: number;
+  /** Time spent running the post-script (tsx transpile + execute) */
+  postMs: number;
+  /** Remainder: request build, env merge, bookkeeping */
+  otherMs: number;
+}
+
 export interface TestResult {
   name: string;
   file: string;
   status: TestResultStatus;
   httpStatus?: number;
   durationMs: number;
+  timings?: TestTimings;
   assertions: AssertionResults;
   scriptOutput?: string[];
   error?: string;

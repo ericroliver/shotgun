@@ -4,14 +4,15 @@
  * Orchestrates: load → pre-script → curl → assert → post-script → log
  */
 
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
+import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { loadConfig, loadEnv, loadTestFile, loadCollection, discoverCollections, loadSuite } from './loader.js';
 import { executeRequest, checkDependencies } from './executor.js';
 import { runAssertions, assertionsAllPassed, writeSnapshot } from './asserter.js';
 import { runScript } from './scripter.js';
 import { RunLogger } from './logger.js';
 import { printCollectionHeader, printTestStart, printTestResult, printSummary } from './reporter.js';
-import type { ShotgunRequest, ShotgunResponse, TestResult, EnvVars, RunSummary, ShotgunConfig } from './types.js';
+import type { ShotgunRequest, ShotgunResponse, TestResult, TestTimings, EnvVars, RunSummary, ShotgunConfig } from './types.js';
 
 export interface RunOptions {
   env?: string;
@@ -60,6 +61,11 @@ export async function runTests(opts: RunOptions): Promise<RunSummary> {
   } else if (opts.suite) {
     const suite = loadSuite(opts.suite, config, cwd);
     collectionNames = suite.collections;
+    // Apply suite-level tags as the active tag filter when no explicit --tags flag was given.
+    // This ensures a suite like smoke (tags: [smoke]) only runs tests carrying that tag.
+    if (!opts.tags?.length && suite.tags?.length) {
+      opts.tags = suite.tags;
+    }
   } else if (opts.collection) {
     collectionNames = [opts.collection];
   } else {
@@ -70,8 +76,12 @@ export async function runTests(opts: RunOptions): Promise<RunSummary> {
   for (const collectionName of collectionNames) {
     const { definition, testFiles } = loadCollection(collectionName, config, cwd);
 
-    // Tag filter at collection level — if collection has no overlapping tags, move on
-    if (opts.tags?.length && !opts.tags.some(t => definition.tags?.includes(t))) {
+    // Tag filter at collection level.
+    // When running a suite, skip this check — the suite already enumerates its collections
+    // explicitly, and its tags: field is a test-level filter, not a collection filter.
+    // When running with --tags from the CLI (no suite), skip entire collections that have
+    // no overlapping tags with the requested tags.
+    if (!opts.suite && opts.tags?.length && !opts.tags.some(t => definition.tags?.includes(t))) {
       continue;
     }
 
@@ -165,6 +175,12 @@ export async function runTests(opts: RunOptions): Promise<RunSummary> {
   });
 
   printSummary(summary);
+
+  // Auto-update the _failures_ collection whenever any test failed
+  if (summary.failed > 0) {
+    updateFailuresCollection(summary.results, config, cwd);
+  }
+
   return summary;
 }
 
@@ -202,7 +218,9 @@ async function runSingleTest(
   };
 
   // Pre-script
+  let preMs = 0;
   if (test.pre) {
+    const preStart = Date.now();
     try {
       const preResult = await runScript(test.pre, {
         env: opts.env,
@@ -210,6 +228,7 @@ async function runSingleTest(
         request,
         scriptsDir: opts.scriptsDir,
       });
+      preMs = Date.now() - preStart;
       scriptOutput.push(...preResult.logs);
       if (!preResult.passed) {
         return makeFailedResult(test.name, file, startMs, {}, `Pre-script failed: ${preResult.error}`, scriptOutput);
@@ -221,6 +240,7 @@ async function runSingleTest(
       // Apply var mutations
       applyVarMutations(opts.vars, preResult.varMutations);
     } catch (err) {
+      preMs = Date.now() - preStart;
       return makeFailedResult(test.name, file, startMs, {}, `Pre-script threw: ${err}`, scriptOutput);
     }
   }
@@ -236,6 +256,7 @@ async function runSingleTest(
   }
 
   // Assertions
+  const assertStart = Date.now();
   const fullTest = test as Parameters<typeof runAssertions>[0]['test'];
   const assertions = await runAssertions({
     test: fullTest,
@@ -245,6 +266,7 @@ async function runSingleTest(
     collectionName: opts.collectionName,
     snapshotMode: opts.snapshotMode,
   });
+  const assertMs = Date.now() - assertStart;
 
   // Check for missing baseline
   const needsBaseline = test.response &&
@@ -253,7 +275,9 @@ async function runSingleTest(
     !assertions.snapshotDiff;
 
   // Post-script
+  let postMs = 0;
   if (test.post) {
+    const postStart = Date.now();
     try {
       const postResult = await runScript(test.post, {
         env: opts.env,
@@ -262,6 +286,7 @@ async function runSingleTest(
         response,
         scriptsDir: opts.scriptsDir,
       });
+      postMs = Date.now() - postStart;
       scriptOutput.push(...postResult.logs);
       applyVarMutations(opts.vars, postResult.varMutations);
       assertions.postScript = postResult.passed;
@@ -269,13 +294,23 @@ async function runSingleTest(
         assertions.postScriptError = postResult.error;
       }
     } catch (err) {
+      postMs = Date.now() - postStart;
       assertions.postScript = false;
       assertions.postScriptError = String(err);
     }
   }
 
   const durationMs = Date.now() - startMs;
+  const curlMs = response.curlMs;
   const allPassed = assertionsAllPassed(assertions);
+
+  const timings: TestTimings = {
+    curlMs,
+    assertMs,
+    preMs,
+    postMs,
+    otherMs: Math.max(0, durationMs - curlMs - assertMs - preMs - postMs),
+  };
 
   return {
     name: test.name,
@@ -283,6 +318,7 @@ async function runSingleTest(
     status: needsBaseline ? 'needs_baseline' : allPassed ? 'passed' : 'failed',
     httpStatus: response.status,
     durationMs,
+    timings,
     assertions,
     scriptOutput: scriptOutput.length ? scriptOutput : undefined,
   };
@@ -294,6 +330,95 @@ async function runSingleFile(
 ): Promise<TestResult> {
   const test = loadTestFile(file, opts.env);
   return runSingleTest(test, file, opts);
+}
+
+// ---------------------------------------------------------------------------
+// Failures collection updater
+// ---------------------------------------------------------------------------
+
+/**
+ * Rewrites local-dev-test-repo/tests/collections/_failures_/_collection.yaml
+ * (or the equivalent path under `cwd`) so that its `order` list contains only
+ * the cross-collection references for tests that failed in this run.
+ *
+ * The file is only written when there are failures; a clean run leaves it
+ * unchanged so the previous failure list is preserved for reference.
+ */
+function updateFailuresCollection(
+  results: import('./types.js').TestResult[],
+  config: import('./types.js').ShotgunConfig,
+  cwd: string,
+): void {
+  const testsDir = join(cwd, config.paths?.tests ?? 'tests');
+  const collectionsDir = join(testsDir, 'collections');
+  const failuresDir = join(collectionsDir, '_failures_');
+
+  const failedRefs = results
+    .filter(r => r.status === 'failed')
+    .map(r => {
+      // r.file is an absolute path like: …/collections/some-coll/test-name.yaml
+      // We want: "some-coll/test-name"
+      const rel = relative(collectionsDir, r.file);          // "some-coll/test-name.yaml"
+      return rel.replace(/\.yaml$/, '');                     // "some-coll/test-name"
+    })
+    // Deduplicate (shouldn't happen, but be safe)
+    .filter((ref, i, arr) => arr.indexOf(ref) === i);
+
+  if (failedRefs.length === 0) return;
+
+  const orderLines = failedRefs.map(ref => `  - ${ref}`).join('\n');
+  const timestamp = new Date().toISOString();
+
+  const yaml = `# _failures_/_collection.yaml
+#
+# Auto-managed by the banger runner.
+#
+# After any run that contains failures, banger rewrites the \`order\` list below
+# with the collection/test references of every test that failed.  Re-running
+# this collection with:
+#
+#   banger run --collection _failures_
+#
+# lets you quickly re-execute only the tests that broke in the previous run
+# without having to remember which ones they were.
+#
+# The setup/teardown scripts are intentionally empty — each referenced test
+# brings its own collection's setup via the cross-collection reference
+# mechanism.  Do not add shared auth or workspace-load logic here; it belongs
+# in the originating collection.
+#
+# ⚠️  Do not hand-edit the \`order\` list — it is overwritten on every run that
+#     produces failures.  To permanently pin a subset of tests, copy the list
+#     into a new named collection or suite instead.
+#
+# Last updated: ${timestamp}
+
+name: Failures
+description: >
+  Automatically populated with the tests that failed in the most recent run.
+  Re-run with \`banger run --collection _failures_\` to replay only failures.
+
+order:
+${orderLines}
+
+tags:
+  - failures
+  - auto
+
+setup: |
+  ctx.log('_failures_ collection — no shared setup; each test owns its own context.');
+
+teardown: |
+  ctx.log('_failures_ collection teardown complete.');
+`;
+
+  if (!existsSync(failuresDir)) {
+    mkdirSync(failuresDir, { recursive: true });
+  }
+
+  const outPath = join(failuresDir, '_collection.yaml');
+  writeFileSync(outPath, yaml, 'utf8');
+  console.log(`\n  ✎  _failures_ collection updated (${failedRefs.length} test${failedRefs.length === 1 ? '' : 's'}): ${outPath}`);
 }
 
 // ---------------------------------------------------------------------------

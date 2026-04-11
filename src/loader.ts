@@ -233,7 +233,7 @@ export function discoverCollections(config: ShotgunConfig, cwd: string = process
   if (!existsSync(collectionsDir)) return [];
 
   return readdirSync(collectionsDir, { withFileTypes: true })
-    .filter(d => d.isDirectory())
+    .filter(d => d.isDirectory() && !d.name.startsWith('_'))
     .map(d => d.name)
     .sort();
 }

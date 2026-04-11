@@ -4,6 +4,7 @@
  * Supports: pretty (default), json, tap formats.
  */
 
+import path from 'node:path';
 import type { RunSummary, TestResult, AssertionResults } from './types.js';
 
 // ---------------------------------------------------------------------------
@@ -32,12 +33,13 @@ export function printTestStart(name: string, method: string, path: string): void
 }
 
 export function printTestResult(result: TestResult): void {
+  const httpCode = result.httpStatus != null ? `${result.httpStatus} ` : '';
   switch (result.status) {
     case 'passed':
-      process.stdout.write(`${c.green}OK${c.reset} ${c.dim}${result.durationMs}ms${c.reset}\n`);
+      process.stdout.write(`${c.green}${httpCode}OK${c.reset} ${c.dim}${result.durationMs}ms${c.reset}${formatTimings(result)}\n`);
       break;
     case 'failed': {
-      process.stdout.write(`${c.red}FAIL${c.reset}\n`);
+      process.stdout.write(`${c.red}${httpCode}FAIL${c.reset}\n`);
       const reasons = getFailureReasons(result.assertions);
       for (const r of reasons) {
         console.log(`    ${c.red}✗${c.reset} ${r}`);
@@ -73,6 +75,37 @@ export function printTestResult(result: TestResult): void {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Timing breakdown formatter
+// ---------------------------------------------------------------------------
+
+function formatTimings(result: TestResult): string {
+  const t = result.timings;
+  if (!t) return '';
+
+  const parts: string[] = [];
+
+  parts.push(`curl:${t.curlMs}ms`);
+
+  if (t.preMs > 0) {
+    parts.push(`pre:${t.preMs}ms`);
+  }
+
+  if (t.assertMs > 0) {
+    parts.push(`assert:${t.assertMs}ms`);
+  }
+
+  if (t.postMs > 0) {
+    parts.push(`post:${t.postMs}ms`);
+  }
+
+  if (t.otherMs > 0) {
+    parts.push(`other:${t.otherMs}ms`);
+  }
+
+  return ` ${c.dim}(${parts.join(', ')})${c.reset}`;
+}
+
 export function printCollectionHeader(name: string): void {
   console.log(`\n${c.bold}${c.cyan}◆ ${name}${c.reset}`);
 }
@@ -94,6 +127,13 @@ export function printSummary(summary: RunSummary): void {
 
   if (failed > 0) {
     console.log(`  ${c.red}${c.bold}✗ ${failed} failed${c.reset}  ${c.green}${passed} passed${c.reset}  ${c.dim}${total} total${c.reset}`);
+    console.log('');
+    for (const result of summary.results) {
+      if (result.status === 'failed') {
+        const rel = path.relative(process.cwd(), result.file);
+        console.log(`    ${c.red}✗${c.reset} ${c.dim}${rel}${c.reset}`);
+      }
+    }
   } else if (needsBaseline > 0) {
     console.log(`  ${c.yellow}${needsBaseline} need baseline${c.reset}  ${c.green}${passed} passed${c.reset}  ${c.dim}${total} total${c.reset}`);
   } else {
