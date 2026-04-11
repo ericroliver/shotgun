@@ -1,6 +1,6 @@
-# Banger Testing Journal
+# Shotgun Testing Journal
 
-> Tips, tricks, patterns, and hard-won lessons for writing banger tests.
+> Tips, tricks, patterns, and hard-won lessons for writing shotgun tests.
 > Add to this as you discover things — don't let the knowledge die in Slack or a terminal window.
 
 ---
@@ -9,19 +9,19 @@
 
 1. [Auth Wiring](#1-auth-wiring)
 2. [Variable Stashing (the create→read→delete chain)](#2-variable-stashing-the-createreaddelete-chain)
-3. [Skip Patterns](#3-skip-patterns)
-4. [Snapshot Policy](#4-snapshot-policy)
-5. [Write Test Shape Assertions](#5-write-test-shape-assertions)
-6. [Teardown as Safety Net](#6-teardown-as-safety-net)
-7. [Test Data Uniqueness](#7-test-data-uniqueness)
-8. [Workspace Loading](#8-workspace-loading)
-9. [URL Path Encoding Gotcha](#9-url-path-encoding-gotcha)
-10. [Status Code Surprises](#10-status-code-surprises)
-11. [jq Shape Assertion Tips](#11-jq-shape-assertion-tips)
-12. [Debugging Failed Runs](#12-debugging-failed-runs)
-13. [Collection Order Matters](#13-collection-order-matters)
-14. [ctx.http vs curl](#14-ctxhttp-vs-curl)
-15. [Testing Plans as Living Docs](#15-testing-plans-as-living-docs)
+3. [Snapshot Policy](#3-snapshot-policy)
+4. [Write Test Shape Assertions](#4-write-test-shape-assertions)
+5. [Teardown as Safety Net](#5-teardown-as-safety-net)
+6. [Test Data Uniqueness](#6-test-data-uniqueness)
+7. [Workspace Loading](#7-workspace-loading)
+8. [URL Path Encoding Gotcha](#8-url-path-encoding-gotcha)
+9. [Status Code Surprises](#9-status-code-surprises)
+10. [jq Shape Assertion Tips](#10-jq-shape-assertion-tips)
+11. [Debugging Failed Runs](#11-debugging-failed-runs)
+12. [Collection Order Matters](#12-collection-order-matters)
+13. [ctx.http vs curl](#13-ctxhttp-vs-curl)
+14. [Testing Plans as Living Docs](#14-testing-plans-as-living-docs)
+15. [Tests Must Surface Bugs, Not Hide Them](#15-tests-must-surface-bugs-not-hide-them)
 
 ---
 
@@ -69,7 +69,7 @@ ctx.log(`Node A created — path: ${ctx.vars.createdNodePathA}`);
 
 // pre-script of READ / DELETE test:
 const path = ctx.vars.createdNodePathA as string;
-if (!path) ctx.skip('No node path stashed — create test may have failed');
+ctx.assert(!!path, 'createdNodePathA is not set — create test must have run and succeeded first');
 ctx.request.path = `/api/graph/nodes/${path}`;
 ```
 
@@ -97,26 +97,7 @@ ctx.log('Node A deleted and var cleared');
 
 ---
 
-## 3. Skip Patterns
-
-Use `ctx.skip()` in `pre` when a test depends on a var that a previous test was supposed to set. This makes it clear the test is a no-op, not a failure.
-
-```javascript
-// pre-script:
-const id = ctx.vars.createdLinkId as string;
-if (!id) {
-  ctx.skip('No link id stashed — create-graph-link may have failed or was skipped');
-}
-ctx.request.path = `/api/graph/links/${id}`;
-```
-
-**`ctx.skip()` never returns** — it throws internally and terminates the pre-script. No need for `return` after it (TypeScript will flag unreachable code if you try).
-
-**Don't use skip for expected API behavior** (e.g. 405 on DELETE of a link). Skip is for "we can't even try because a prerequisite didn't run." Use `response.status` assertions for known API quirks.
-
----
-
-## 4. Snapshot Policy
+## 3. Snapshot Policy
 
 The rule is simple:
 
@@ -139,11 +120,11 @@ response:
     - "**.requestId"
 ```
 
-**When baseline doesn't exist yet:** The test is marked `needs_baseline` — not a failure. Run `banger snapshot` to capture it, commit the `expected/` file, then subsequent runs will diff against it.
+**When baseline doesn't exist yet:** The test is marked `needs_baseline` — not a failure. Run `shotgun snapshot` to capture it, commit the `expected/` file, then subsequent runs will diff against it.
 
 ---
 
-## 5. Write Test Shape Assertions
+## 4. Write Test Shape Assertions
 
 Since write tests don't snapshot, shape assertions are your only structural verification. Make them meaningful:
 
@@ -170,7 +151,7 @@ curl -s -X POST "${BASE_URL}/api/graph/nodes" \
 
 ---
 
-## 6. Teardown as Safety Net
+## 5. Teardown as Safety Net
 
 Teardown exists to clean up test data even if mid-suite tests fail. Write it defensively:
 
@@ -199,7 +180,7 @@ Key principles:
 
 ---
 
-## 7. Test Data Uniqueness
+## 6. Test Data Uniqueness
 
 Any test data your suite creates should use a timestamp-based unique key. This prevents:
 - Collisions between repeated runs (e.g., leftover data from a previous failed run)
@@ -208,15 +189,15 @@ Any test data your suite creates should use a timestamp-based unique key. This p
 ```javascript
 // _collection.yaml setup:
 const ts = Date.now();
-ctx.vars.testNodePathA = `banger-test/node-a-${ts}`;
-ctx.vars.testNodePathB = `banger-test/node-b-${ts}`;
+ctx.vars.testNodePathA = `shotgun-test/node-a-${ts}`;
+ctx.vars.testNodePathB = `shotgun-test/node-b-${ts}`;
 ```
 
-**Namespace your test data.** Use a consistent prefix like `banger-test/` so you can identify and manually purge test data if needed.
+**Namespace your test data.** Use a consistent prefix like `shotgun-test/` so you can identify and manually purge test data if needed.
 
 ---
 
-## 8. Workspace Loading
+## 7. Workspace Loading
 
 For APIs that require a workspace context, load it in collection `setup` — not per-test:
 
@@ -240,11 +221,11 @@ if (wsName) {
 
 ---
 
-## 9. URL Path Encoding Gotcha
+## 8. URL Path Encoding Gotcha
 
 ### Don't encode path separators
 
-If the API uses real path segments as resource identifiers (e.g., `banger-test/node-a-123`), do **not** `encodeURIComponent` the full thing — that would encode the `/` and break the route:
+If the API uses real path segments as resource identifiers (e.g., `shotgun-test/node-a-123`), do **not** `encodeURIComponent` the full thing — that would encode the `/` and break the route:
 
 ```javascript
 // ✅ Correct — real slashes preserved
@@ -254,11 +235,11 @@ ctx.request.path = `/api/graph/nodes/${ctx.vars.createdNodePathA}`;
 ctx.request.path = `/api/graph/nodes/${encodeURIComponent(ctx.vars.createdNodePathA)}`;
 ```
 
-**Lesson learned from the graph API:** the node path `banger-test/node-a-123` is used as-is in the URL, e.g. `GET /api/graph/nodes/banger-test/node-a-123`.
+**Lesson learned from the graph API:** the node path `shotgun-test/node-a-123` is used as-is in the URL, e.g. `GET /api/graph/nodes/shotgun-test/node-a-123`.
 
 ---
 
-## 10. Status Code Surprises
+## 9. Status Code Surprises
 
 APIs don't always follow REST conventions. Document quirks in testing plans and collection descriptions — never silently swallow unexpected codes.
 
@@ -288,7 +269,7 @@ response:
 
 ---
 
-## 11. jq Shape Assertion Tips
+## 10. jq Shape Assertion Tips
 
 Shape assertions use `jq` boolean expressions. A few patterns:
 
@@ -328,7 +309,7 @@ const items = Array.isArray(ctx.response.body)
 
 ---
 
-## 12. Debugging Failed Runs
+## 11. Debugging Failed Runs
 
 ### Check the run logs first
 
@@ -355,10 +336,10 @@ curl -s "${BASE_URL}/api/graph/nodes" | jq .
 # POST
 curl -s -X POST "${BASE_URL}/api/graph/nodes" \
   -H "Content-Type: application/json" \
-  -d '{"path":"banger-test/probe","contentType":"text/plain","content":"test","persist":"file"}' | jq .
+  -d '{"path":"shotgun-test/probe","contentType":"text/plain","content":"test","persist":"file"}' | jq .
 
 # PATCH
-curl -s -X PATCH "${BASE_URL}/api/graph/nodes/banger-test/probe" \
+curl -s -X PATCH "${BASE_URL}/api/graph/nodes/shotgun-test/probe" \
   -H "Content-Type: application/json" \
   -d '{"title":"Updated"}' | jq .
 ```
@@ -379,7 +360,7 @@ npx tsx ../src/index.ts run --file tests/collections/graph/create-graph-node-a.y
 
 ---
 
-## 13. Collection Order Matters
+## 12. Collection Order Matters
 
 The `order` array in `_collection.yaml` is not optional for CRUD collections — it controls execution sequence. If you add a test file, add it to `order` in the right position:
 
@@ -402,14 +383,14 @@ Tests not listed in `order` still run, but at an unspecified position after the 
 
 ---
 
-## 14. ctx.http vs curl
+## 13. ctx.http vs curl
 
 `ctx.http.*` and `curl` serve different purposes:
 
 | | `ctx.http.*` | `curl` (via request) |
 |---|---|---|
 | Used in | `pre`, `post`, `setup`, `teardown` scripts | The actual test request |
-| Returns | `BangerResponse` object | Captured by executor |
+| Returns | `ShotgunResponse` object | Captured by executor |
 | Assertions run | No | Yes (status, shape, snapshot) |
 | Shows in report | No (side effect only) | Yes |
 | Use for | Setup calls, teardown cleanup, data seeding | The thing you're testing |
@@ -418,7 +399,7 @@ Tests not listed in `order` still run, but at an unspecified position after the 
 
 ---
 
-## 15. Testing Plans as Living Docs
+## 14. Testing Plans as Living Docs
 
 The `local-dev-test-repo/testing-plans/` directory contains one Markdown file per collection. These are **living documents** — update them as you learn things about the API.
 
@@ -426,11 +407,77 @@ A testing plan records:
 - Which endpoints to test and the target test file names
 - Snapshot policy decisions
 - Shape assertion patterns (so future tests are consistent)
-- Skip patterns for dependent tests
 - Known API quirks specific to that collection
 - Suite membership (`smoke.yaml`, `gets-all.yaml`)
 
 **Read `testing-plans/README.md` before writing a new collection.** It contains shared conventions for auth wiring, workspace loading, stash patterns, etc.
+
+---
+
+## 15. Tests Must Surface Bugs, Not Hide Them
+
+**The entire purpose of API tests is to find bugs in the API.**
+
+A test that silently accepts error codes — 404, 405, 501, "known limitation" — is not a test. It is a green checkbox that lies to you. If you encounter a situation where you are tempted to write `if (s === 404) { ctx.log('acceptable'); return; }`, stop and ask: **is this actually acceptable, or is this a bug?**
+
+### The Smell
+
+These patterns all indicate a test that is masking a bug rather than catching one:
+
+```javascript
+// ❌ Silently swallowing a missing endpoint
+if (s === 404 || s === 405) {
+  ctx.log('endpoint not implemented — known limitation');
+  ctx.vars.thingId = null;
+  return; // test "passes"
+}
+
+// ❌ Logging instead of asserting
+ctx.log(`Unexpected status: ${s}`); // no ctx.assert = no failure
+
+// ❌ Accepting both success and failure as "OK"
+ctx.assert(s === 200 || s === 404, '...');
+// (after a CREATE that must have succeeded — 404 here IS a bug)
+```
+
+### The Rule
+
+**Every test must have exactly one definition of success, expressed with `ctx.assert`.**
+
+If an endpoint is genuinely not implemented yet, the test must **fail** until it is. A failing test is a standing bug report. A passing test with a `ctx.log('not supported')` is a lie that gets committed to the repo and forgotten.
+
+### When 4xx/5xx IS the correct expected status
+
+There are legitimate cases where a non-2xx code is the right assertion — but it must be **explicit and intentional**:
+
+```javascript
+// ✅ Confirmed API limitation — 405 is asserted, not swallowed
+ctx.assert(s === 405, `Expected 405 on DELETE /api/graph/links (confirmed API limitation — no DELETE endpoint), got ${s}`);
+
+// ✅ Post-delete confirmation — 404 is the proof the delete worked
+ctx.assert(s === 404, `Expected 404 confirming node is deleted, got ${s} — node may still exist`);
+```
+
+The difference: the assertion message explains **why** that code is expected, and any deviation **fails the test**.
+
+### When You Find a Missing Endpoint
+
+If you discover an endpoint is missing (e.g., no DELETE for a resource that should have one):
+
+1. **Write the test anyway** — assert 200/204, let it fail
+2. **Add a comment** at the top of the test: `# BUG: DELETE endpoint not yet implemented — see [ticket/issue ref]`
+3. **File a bug** with the API team
+4. **Do not** change the assertion to accept 404/405 — the failing test IS the bug report
+
+### Real Examples Fixed in This Repo
+
+| File | What was wrong | Fix |
+|------|---------------|-----|
+| `code/delete-pattern.yaml` | Accepted 404/405 as "known limitation" — masked missing DELETE endpoint | Now asserts 200/204 only |
+| `code/post-pattern-find.yaml` | Accepted 404 after pattern was just defined — masked a find bug | Now asserts 200 only |
+| `graph/modify-graph-node.yaml` | Hardcoded 405 as "expected" when PATCH is actually supported | Now asserts 200 with body inspection |
+| `graph/delete-graph-link.yaml` | No `ctx.assert` at all — any status code silently passed | Now asserts exactly 405 (confirmed limitation) |
+| `fs/get-fs-verify.yaml` | Post-script had dead `if (status === 404) { return; }` path that contradicted `status: 200` | Removed dead path; assert 200 only |
 
 ---
 
@@ -441,7 +488,7 @@ A testing plan records:
 ```javascript
 if (ctx.vars.authHeader) ctx.request.headers['Authorization'] = ctx.vars.authHeader;
 const id = ctx.vars.createdResourceId as string;
-if (!id) ctx.skip('No resource id — create test may have failed or was skipped');
+ctx.assert(!!id, 'createdResourceId is not set — create test must have run and succeeded first');
 ctx.request.path = `/api/resource/${id}`;
 ```
 

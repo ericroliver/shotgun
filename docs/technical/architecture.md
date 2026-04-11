@@ -406,7 +406,6 @@ runs/2026-03-28_20-05-32/
   "total": 6,
   "passed": 5,
   "failed": 1,
-  "skipped": 0,
   "results": [
     {
       "name": "Get All Agents",

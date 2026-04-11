@@ -161,7 +161,7 @@ export async function writeSnapshot(
   // snapshot file and cause every subsequent run to fail with a confusing diff.
   if (!normalized.trim()) {
     if (process.env.SHOTGUN_DEBUG) {
-      console.warn(`[asserter] writeSnapshot skipped for "${path}" — normalized content is empty (API may be unreachable)`);
+      console.warn(`[asserter] writeSnapshot suppressed for "${path}" — normalized content is empty (API may be unreachable)`);
     }
     return;
   }

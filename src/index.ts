@@ -57,6 +57,7 @@ interface ParsedArgs {
   file?: string;
   format?: 'pretty' | 'json' | 'tap';
   run?: string;
+  cwd?: string;
 }
 
 function parseArgs(argv: string[]): ParsedArgs {
@@ -70,6 +71,7 @@ function parseArgs(argv: string[]): ParsedArgs {
       case '--file':       result.file = argv[++i]; break;
       case '--format':     result.format = argv[++i] as ParsedArgs['format']; break;
       case '--run':        result.run = argv[++i]; break;
+      case '--cwd':        result.cwd = argv[++i]; break;
     }
   }
   return result;
@@ -89,6 +91,10 @@ async function main() {
   }
 
   const args = parseArgs(rest);
+
+  if (args.cwd) {
+    process.chdir(args.cwd);
+  }
 
   switch (subcommand) {
     case 'run': {
