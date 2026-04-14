@@ -81,6 +81,29 @@ export interface CollectionDefinition {
   setup?: string;
   /** TypeScript source — runs once after last test, even on failure */
   teardown?: string;
+  /**
+   * Pre-seeded into ctx.vars before setup_fixtures and setup run.
+   * Collection vars override suite vars on collision.
+   * Values declared here belong to the collection, not the .env file.
+   */
+  vars?: Record<string, string>;
+}
+
+// ---------------------------------------------------------------------------
+// Suite Definition (parsed from tests/suites/*.yaml)
+// ---------------------------------------------------------------------------
+
+export interface SuiteDefinition {
+  name: string;
+  description?: string;
+  collections: string[];
+  tags?: string[];
+  /**
+   * Pre-seeded into ctx.vars at run start, before any collection setup fires.
+   * Suite vars are overridden by collection vars on collision.
+   * Use for suite-level parameters like WORKSPACE_NAME that differ per suite.
+   */
+  vars?: Record<string, string>;
 }
 
 // ---------------------------------------------------------------------------

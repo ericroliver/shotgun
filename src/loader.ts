@@ -14,6 +14,7 @@ import type {
   EnvVars,
   TestDefinition,
   CollectionDefinition,
+  SuiteDefinition,
   SetupFixtureDefinition,
 } from './types.js';
 
@@ -158,6 +159,7 @@ const CollectionDefSchema = z.object({
   setup_fixtures: z.array(z.string()).optional(),
   setup: z.string().optional(),
   teardown: z.string().optional(),
+  vars: z.record(z.string()).optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -430,9 +432,10 @@ const SuiteSchema = z.object({
   description: z.string().optional(),
   collections: z.array(z.string()),
   tags: z.array(z.string()).optional(),
+  vars: z.record(z.string()).optional(),
 });
 
-export function loadSuite(suiteName: string, config: ShotgunConfig, cwd: string = process.cwd()) {
+export function loadSuite(suiteName: string, config: ShotgunConfig, cwd: string = process.cwd()): SuiteDefinition {
   const suitesDir = join(cwd, config.paths?.tests ?? 'tests', 'suites');
   const suiteFile = join(suitesDir, `${suiteName}.yaml`);
 
@@ -445,7 +448,7 @@ export function loadSuite(suiteName: string, config: ShotgunConfig, cwd: string 
   if (!result.success) {
     throw new Error(`Invalid suite file ${suiteFile}:\n${formatZodError(result.error)}`);
   }
-  return result.data;
+  return result.data as SuiteDefinition;
 }
 
 // ---------------------------------------------------------------------------

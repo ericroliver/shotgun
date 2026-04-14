@@ -24,7 +24,7 @@ import {
 } from './reporter.js';
 import type {
   ShotgunRequest, ShotgunResponse, TestResult, TestTimings, EnvVars,
-  RunSummary, ShotgunConfig, SessionState,
+  RunSummary, ShotgunConfig, SessionState, SuiteDefinition,
 } from './types.js';
 
 export interface RunOptions {
@@ -96,10 +96,14 @@ export async function runTests(opts: RunOptions): Promise<RunSummary> {
   let collectionNames: string[] = [];
 
   if (opts.suite) {
-    const suite = loadSuite(opts.suite, config, cwd);
+    const suite: SuiteDefinition = loadSuite(opts.suite, config, cwd);
     collectionNames = suite.collections;
     if (!opts.tags?.length && suite.tags?.length) {
       opts.tags = suite.tags;
+    }
+    // Merge suite-level vars into ctx.vars — lowest precedence layer
+    if (suite.vars) {
+      Object.assign(vars, suite.vars);
     }
   } else if (opts.collection) {
     collectionNames = [opts.collection];
@@ -245,12 +249,17 @@ interface SharedRunOpts {
  */
 async function ensureCollectionSetup(
   collectionName: string,
-  definition: { setup_fixtures?: string[]; setup?: string; name?: string },
+  definition: { setup_fixtures?: string[]; setup?: string; name?: string; vars?: Record<string, string> },
   opts: SharedRunOpts,
 ): Promise<boolean> {
   if (opts.session.collectionsSetup.has(collectionName)) return true;
 
   const dummyRequest = makeDummyRequest(opts.baseUrl);
+
+  // 0. Merge collection-level vars into ctx.vars — overrides suite vars
+  if (definition.vars) {
+    Object.assign(opts.vars, definition.vars);
+  }
 
   // 1. Run setup_fixtures in order
   if (definition.setup_fixtures?.length) {

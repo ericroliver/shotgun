@@ -1,18 +1,18 @@
-# Enigma (formerly TinyAST) GET Test Suite — Plan
+# Enigma (formerly Enigma) GET Test Suite — Plan
 
 > Status: In progress — system collection complete ✅
 > Target dev URL: `http://m1x.local:3080`
 > Spec (latest): [`local-dev-test-repo/specs/enigma-api.json`](../../local-dev-test-repo/specs/enigma-api.json)
 > Summary: [`local-dev-test-repo/specs/enigma-api-summary.txt`](../../local-dev-test-repo/specs/enigma-api-summary.txt)
 
-> **Note:** The API is being renamed from TinyAST → Enigma. The two names refer to the same API.
+> **Note:** The API is being renamed from Enigma → Enigma. The two names refer to the same API.
 > All new test artifacts use the Enigma name in comments/descriptions; the endpoints are unchanged.
 
 ---
 
 ## Spec Delta (v2 — Enigma)
 
-The following GET endpoints are **new** in the Enigma spec vs the original TinyAST spec:
+The following GET endpoints are **new** in the Enigma spec vs the original Enigma spec:
 
 | New Endpoint | Collection | Notes |
 |---|---|---|
@@ -412,8 +412,8 @@ All 14 collections. Full GET coverage pass. Tests that require env vars will fai
 ```
 local-dev-test-repo/
 ├── shotgun.config.yaml
-├── tinyast-openapi-spec.json        # (existing)
-├── tinyast-endpoints.txt            # (existing)
+├── enigma-openapi-spec.json        # (existing)
+├── enigma-endpoints.txt            # (existing)
 ├── envs/
 │   ├── local.env                    # gitignored — fill in values
 │   └── local.env.example            # committed — template
