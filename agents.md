@@ -4,6 +4,25 @@
 
 ---
 
+## ⚠️ CRITICAL — Two Suites, Two Workspaces, Never Mix Them
+
+The `local-dev-test-repo` runs tests against **two completely separate workspaces** on the Enigma server. They are **not interchangeable**. Never modify one suite's collection files, vars, or snapshots while working on the other.
+
+| Suite | `vars: WORKSPACE_NAME` | Purpose |
+|-------|------------------------|---------|
+| `smoke.yaml` / `tsap.yaml` | `apitesting` | Quick health check + full regression against the **stable synthetic fixture workspace**. Snapshots in `expected/` were captured against this workspace. |
+| `api-testapp-1.yaml` | `api-testapp-1` | Deep integration tests against a **real TypeScript/Svelte/.NET todo application workspace**. Separate snapshot lifecycle. |
+
+### Rules an AI agent MUST follow
+
+1. **Never change `smoke.yaml` or `tsap.yaml` collection vars/files** while working on `api-testapp-1` testing tasks, and vice versa.
+2. **Never re-snapshot** `expected/` baselines using a non-`apitesting` workspace — that breaks the smoke/tsap suite for everyone.
+3. **"Failing tests" in the `code` / `fs` collection when running `--suite api-testapp-1`** are almost always caused by path-param vars (`FILE_PATH`, `CLASS_NAME`, etc.) still pointing to `apitesting` fixtures (`SampleController.vb`, `ClassA.vb`, etc.) — not API bugs. Fix by adding a `vars:` block to the collection `_collection.yaml`.
+4. **Collection `_collection.yaml` files are shared** between suites (the same `code/_collection.yaml` is used by both smoke and api-testapp-1). Only add a `vars:` block — never remove or change existing `smoke`-safe logic that works without vars.
+5. **Suite vars inject at run time** (`ctx.vars.WORKSPACE_NAME` etc.) — don't hard-code workspace names into collection setup scripts; always use the bridge pattern: `((ctx.vars.X as string) ?? ctx.env.X ?? '').trim()`.
+
+---
+
 ## What Is Shotgun?
 
 **Shotgun** is a shell-first, TypeScript-enhanced API testing CLI.
