@@ -1,4 +1,4 @@
-# shotgun.config.yaml — Global configuration
+# shogun.config.yaml — Global configuration
 version: 1
 
 defaults:

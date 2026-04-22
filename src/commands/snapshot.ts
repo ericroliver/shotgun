@@ -1,5 +1,5 @@
 /**
- * src/commands/snapshot.ts — shotgun snapshot subcommand
+ * src/commands/snapshot.ts — shogun snapshot subcommand
  * Runs tests in snapshot-capture mode: writes expected/ baselines instead of diffing.
  */
 

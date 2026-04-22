@@ -23,8 +23,8 @@ import {
   printCollectionHeader, printTestStart, printTestResult, printSummary,
 } from './reporter.js';
 import type {
-  ShotgunRequest, ShotgunResponse, TestResult, TestTimings, EnvVars,
-  RunSummary, ShotgunConfig, SessionState, SuiteDefinition,
+  ShogunRequest, ShogunResponse, TestResult, TestTimings, EnvVars,
+  RunSummary, ShogunConfig, SessionState, SuiteDefinition,
 } from './types.js';
 
 export interface RunOptions {
@@ -230,7 +230,7 @@ interface SharedRunOpts {
   env: EnvVars;
   vars: Record<string, unknown>;
   baseUrl: string;
-  config: ShotgunConfig;
+  config: ShogunConfig;
   scriptsDir: string;
   cwd: string;
   collectionsDir: string;
@@ -460,7 +460,7 @@ async function runSingleTest(
   const startMs = Date.now();
 
   // Build initial request
-  let request: ShotgunRequest = {
+  let request: ShogunRequest = {
     method: test.request.method,
     path: test.request.path,
     url: buildUrl(opts.baseUrl, test.request.path),
@@ -498,7 +498,7 @@ async function runSingleTest(
   }
 
   // Execute HTTP request
-  let response: ShotgunResponse;
+  let response: ShogunResponse;
   try {
     response = await executeRequest(request, opts.env, {
       timeout: parseInt(opts.env.TIMEOUT ?? '10', 10),
@@ -601,7 +601,7 @@ async function runSingleFile(
  */
 function updateFailuresCollection(
   results: import('./types.js').TestResult[],
-  config: import('./types.js').ShotgunConfig,
+  config: import('./types.js').ShogunConfig,
   cwd: string,
 ): void {
   const testsDir = join(cwd, config.paths?.tests ?? 'tests');
@@ -626,13 +626,13 @@ function updateFailuresCollection(
 
   const yaml = `# _failures_/_collection.yaml
 #
-# Auto-managed by the shotgun runner.
+# Auto-managed by the shogun runner.
 #
-# After any run that contains failures, shotgun rewrites the \`order\` list below
+# After any run that contains failures, shogun rewrites the \`order\` list below
 # with the collection/test references of every test that failed.  Re-running
 # this collection with:
 #
-#   shotgun run --collection _failures_
+#   shogun run --collection _failures_
 #
 # lets you quickly re-execute only the tests that broke in the previous run
 # without having to remember which ones they were.
@@ -654,7 +654,7 @@ function updateFailuresCollection(
 name: Failures
 description: >
   Automatically populated with the tests that failed in the most recent run.
-  Re-run with \`shotgun run --collection _failures_\` to replay only failures.
+  Re-run with \`shogun run --collection _failures_\` to replay only failures.
 
 order:
 ${orderLines}
@@ -692,7 +692,7 @@ function normalizeParams(params: Record<string, string | number | boolean>): Rec
   return Object.fromEntries(Object.entries(params).map(([k, v]) => [k, String(v)]));
 }
 
-function mergeRequest(base: ShotgunRequest, mutations: Partial<ShotgunRequest>, baseUrl: string): ShotgunRequest {
+function mergeRequest(base: ShogunRequest, mutations: Partial<ShogunRequest>, baseUrl: string): ShogunRequest {
   const merged = { ...base, ...mutations };
   // Re-derive URL if path changed
   if (mutations.path && mutations.path !== base.path) {
@@ -708,7 +708,7 @@ function applyVarMutations(vars: Record<string, unknown>, varMutations?: Record<
   }
 }
 
-function makeDummyRequest(baseUrl: string): ShotgunRequest {
+function makeDummyRequest(baseUrl: string): ShogunRequest {
   return {
     method: 'GET',
     path: '/',

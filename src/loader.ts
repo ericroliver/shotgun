@@ -1,6 +1,6 @@
 /**
  * src/loader.ts
- * Loads and validates environment files, shotgun.config.yaml,
+ * Loads and validates environment files, shogun.config.yaml,
  * test definition YAML files, and collection definitions.
  */
 
@@ -10,7 +10,7 @@ import * as yaml from 'js-yaml';
 import { z } from 'zod';
 import { config as dotenvConfig } from 'dotenv';
 import type {
-  ShotgunConfig,
+  ShogunConfig,
   EnvVars,
   TestDefinition,
   CollectionDefinition,
@@ -22,7 +22,7 @@ import type {
 // Global config
 // ---------------------------------------------------------------------------
 
-const ShotgunConfigSchema = z.object({
+const ShogunConfigSchema = z.object({
   version: z.number(),
   defaults: z.object({
     env: z.string().optional(),
@@ -46,25 +46,25 @@ const ShotgunConfigSchema = z.object({
   }).optional(),
 });
 
-export function loadConfig(cwd: string = process.cwd()): ShotgunConfig {
-  const configPath = join(cwd, 'shotgun.config.yaml');
+export function loadConfig(cwd: string = process.cwd()): ShogunConfig {
+  const configPath = join(cwd, 'shogun.config.yaml');
   if (!existsSync(configPath)) {
     // Return sensible defaults when no config file is present
     return { version: 1 };
   }
   const raw = yaml.load(readFileSync(configPath, 'utf8'));
-  const result = ShotgunConfigSchema.safeParse(raw);
+  const result = ShogunConfigSchema.safeParse(raw);
   if (!result.success) {
-    throw new Error(`Invalid shotgun.config.yaml:\n${result.error.toString()}`);
+    throw new Error(`Invalid shogun.config.yaml:\n${result.error.toString()}`);
   }
-  return result.data as ShotgunConfig;
+  return result.data as ShogunConfig;
 }
 
 // ---------------------------------------------------------------------------
 // Environment files
 // ---------------------------------------------------------------------------
 
-export function loadEnv(envName: string, config: ShotgunConfig, cwd: string = process.cwd()): EnvVars {
+export function loadEnv(envName: string, config: ShogunConfig, cwd: string = process.cwd()): EnvVars {
   const envsDir = join(cwd, config.paths?.envs ?? 'envs');
   const envFile = join(envsDir, `${envName}.env`);
 
@@ -174,7 +174,7 @@ const SetupFixtureSchema = z.object({
 
 export function loadSetupFixture(
   fixtureName: string,
-  config: ShotgunConfig,
+  config: ShogunConfig,
   cwd: string = process.cwd(),
 ): SetupFixtureDefinition {
   const fixturesDir = join(cwd, config.paths?.setup_fixtures ?? 'tests/setup-fixtures');
@@ -206,7 +206,7 @@ function listYamlBasenames(dir: string): string[] {
 
 export function loadCollection(
   collectionName: string,
-  config: ShotgunConfig,
+  config: ShogunConfig,
   cwd: string = process.cwd(),
 ): { definition: CollectionDefinition; testFiles: string[] } {
   const testsDir = join(cwd, config.paths?.tests ?? 'tests');
@@ -402,7 +402,7 @@ export function buildDependencyOrder(
 // Collection discovery
 // ---------------------------------------------------------------------------
 
-export function discoverCollections(config: ShotgunConfig, cwd: string = process.cwd()): string[] {
+export function discoverCollections(config: ShogunConfig, cwd: string = process.cwd()): string[] {
   const collectionsDir = join(cwd, config.paths?.tests ?? 'tests', 'collections');
   if (!existsSync(collectionsDir)) return [];
 
@@ -435,7 +435,7 @@ const SuiteSchema = z.object({
   vars: z.record(z.string()).optional(),
 });
 
-export function loadSuite(suiteName: string, config: ShotgunConfig, cwd: string = process.cwd()): SuiteDefinition {
+export function loadSuite(suiteName: string, config: ShogunConfig, cwd: string = process.cwd()): SuiteDefinition {
   const suitesDir = join(cwd, config.paths?.tests ?? 'tests', 'suites');
   const suiteFile = join(suitesDir, `${suiteName}.yaml`);
 

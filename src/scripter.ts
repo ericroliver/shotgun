@@ -1,7 +1,7 @@
 /**
  * src/scripter.ts
  * Executes inline TypeScript pre/post scripts from test definitions.
- * Scripts receive a ShotgunContext and run via tsx eval.
+ * Scripts receive a ShogunContext and run via tsx eval.
  */
 
 import { spawn } from 'node:child_process';
@@ -10,20 +10,20 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
 import type {
-  ShotgunContext,
-  ShotgunRequest,
-  ShotgunResponse,
+  ShogunContext,
+  ShogunRequest,
+  ShogunResponse,
   EnvVars,
-  ShotgunAssertionError as ShotgunAssertionErrorType,
+  ShogunAssertionError as ShogunAssertionErrorType,
 } from './types.js';
-import { ShotgunAssertionError } from './types.js';
+import { ShogunAssertionError } from './types.js';
 
 export interface ScriptRunResult {
   passed: boolean;
   error?: string;
   logs: string[];
   /** Mutations applied to the request (from pre-script) */
-  requestMutations?: Partial<ShotgunRequest>;
+  requestMutations?: Partial<ShogunRequest>;
   /** Mutations applied to shared vars (from any script) */
   varMutations?: Record<string, unknown>;
 }
@@ -39,13 +39,13 @@ export async function runScript(
   ctx: {
     env: EnvVars;
     vars: SharedVars;
-    request: ShotgunRequest;
-    response?: ShotgunResponse;
+    request: ShogunRequest;
+    response?: ShogunResponse;
     scriptsDir: string;
   },
 ): Promise<ScriptRunResult> {
   const tmpId = randomBytes(6).toString('hex');
-  const scriptFile = join(tmpdir(), `shotgun-script-${tmpId}.mts`);
+  const scriptFile = join(tmpdir(), `shogun-script-${tmpId}.mts`);
 
   // Load available shared scripts
   const sharedScripts = loadSharedScriptImports(ctx.scriptsDir);
@@ -66,8 +66,8 @@ function buildScriptWrapper(
   ctx: {
     env: EnvVars;
     vars: SharedVars;
-    request: ShotgunRequest;
-    response?: ShotgunResponse;
+    request: ShogunRequest;
+    response?: ShogunResponse;
     scriptsDir: string;
   },
   sharedScripts: Record<string, string>,
@@ -91,7 +91,7 @@ function buildScriptWrapper(
   return `
 ${sharedImports}
 
-// ---- shotgun script runtime ----
+// ---- shogun script runtime ----
 
 const __ctxData = ${ctxData};
 
@@ -108,7 +108,7 @@ const ctx = {
   assert(condition: boolean, message: string): void {
     if (!condition) {
       const err = new Error(message);
-      err.name = 'ShotgunAssertionError';
+      err.name = 'ShogunAssertionError';
       throw err;
     }
   },
@@ -225,7 +225,7 @@ async function executeScript(scriptFile: string): Promise<ScriptRunResult> {
     proc.on('close', (code) => {
       if (code !== 0) {
         // Check if it's an assertion error
-        const assertMatch = stderr.match(/ShotgunAssertionError: (.+)/);
+        const assertMatch = stderr.match(/ShogunAssertionError: (.+)/);
         const errorMsg = assertMatch
           ? assertMatch[1]
           : stderr.trim() || `Script exited with code ${code}`;
@@ -240,7 +240,7 @@ async function executeScript(scriptFile: string): Promise<ScriptRunResult> {
 
       try {
         const output = JSON.parse(lastLine) as {
-          request?: Partial<ShotgunRequest>;
+          request?: Partial<ShogunRequest>;
           vars?: Record<string, unknown>;
           logs?: string[];
         };
