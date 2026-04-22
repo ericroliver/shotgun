@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * src/index.ts — shotgun CLI entrypoint
+ * src/index.ts — shogun CLI entrypoint
  */
 
 import { run } from './commands/run.js';
@@ -25,28 +25,28 @@ function getVersion(): string {
 }
 
 const USAGE = `
-shotgun — shell-first API testing system
+shogun — shell-first API testing system
 
 Usage:
-  shotgun run                          Run all tests (default env)
-  shotgun run --env QA                 Select environment
-  shotgun run --collection agents      Run one collection
-  shotgun run --tags smoke             Filter by tag (comma-separated)
-  shotgun run --suite smoke            Run a named suite
-  shotgun run --file path/to/test.yaml Run single test file
-  shotgun run --format json            JSON output (for CI)
+  shogun run                          Run all tests (default env)
+  shogun run --env QA                 Select environment
+  shogun run --collection agents      Run one collection
+  shogun run --tags smoke             Filter by tag (comma-separated)
+  shogun run --suite smoke            Run a named suite
+  shogun run --file path/to/test.yaml Run single test file
+  shogun run --format json            JSON output (for CI)
 
-  shotgun snapshot                     Capture/update all baselines
-  shotgun snapshot --file path/...     Update single test baseline
+  shogun snapshot                     Capture/update all baselines
+  shogun snapshot --file path/...     Update single test baseline
 
-  shotgun report                       Show last run report
-  shotgun report --run <timestamp>     Show specific run
+  shogun report                       Show last run report
+  shogun report --run <timestamp>     Show specific run
 
-  shotgun lint                         Validate all YAML files
-  shotgun lint --file path/to/test.yaml
+  shogun lint                         Validate all YAML files
+  shogun lint --file path/to/test.yaml
 
-  shotgun --version                    Print version
-  shotgun --help                       Print this message
+  shogun --version                    Print version
+  shogun --help                       Print this message
 `.trimStart();
 
 interface ParsedArgs {

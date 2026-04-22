@@ -1,4 +1,4 @@
-# Shotgun — `dependsOn` + Shared Setup Fixtures
+# Shogun — `dependsOn` + Shared Setup Fixtures
 
 > Status: Design Draft — 2026-04-11  
 > Author: Architect session
@@ -7,9 +7,9 @@
 
 ## Problem Statement
 
-Shotgun tests today have **implicit, untracked dependencies**. When `delete-graph-node-a` needs `create-graph-node-a` to have run first, this dependency is expressed only as a runtime `ctx.assert()` explosion — not as a declared relationship the engine can reason about. This creates two concrete failure modes:
+Shogun tests today have **implicit, untracked dependencies**. When `delete-graph-node-a` needs `create-graph-node-a` to have run first, this dependency is expressed only as a runtime `ctx.assert()` explosion — not as a declared relationship the engine can reason about. This creates two concrete failure modes:
 
-1. **Running a single test cold** — `shotgun run --file delete-graph-node-a.yaml` will fail with a confusing assertion error because neither the collection `setup` ran (no `testNodePathA`) nor the create test ran (no `createdNodePathA`). There is no way for the runner to figure out _what to run first_.
+1. **Running a single test cold** — `shogun run --file delete-graph-node-a.yaml` will fail with a confusing assertion error because neither the collection `setup` ran (no `testNodePathA`) nor the create test ran (no `createdNodePathA`). There is no way for the runner to figure out _what to run first_.
 
 2. **Re-running failures is incomplete** — the `_failures_` collection replays test files, but cannot reconstitute the pre-conditions those tests depended on.
 
@@ -82,8 +82,8 @@ When a dependency is in a different collection, the runner must run that collect
 
 ### Acceptance Criteria
 
-- `shotgun run --file tests/collections/graph/delete-graph-node-a.yaml` automatically runs `create-graph-node-a` first
-- `shotgun run --collection graph` behaves identically to today (deps already satisfied by ordering)
+- `shogun run --file tests/collections/graph/delete-graph-node-a.yaml` automatically runs `create-graph-node-a` first
+- `shogun run --collection graph` behaves identically to today (deps already satisfied by ordering)
 - Cycle `A → B → A` is detected at load time: `Error: Circular dependency detected: graph/test-a → graph/test-b → graph/test-a`
 - A dependency failure produces: `Skipping 'Delete Graph Node A' — dependency 'graph/create-graph-node-a' failed`
 - The session registry prevents any test from running more than once
@@ -115,8 +115,8 @@ This is the coarse-grained version of Story 1's cross-collection dep hoisting.
 
 ### Acceptance Criteria
 
-- `shotgun run --collection graph` automatically runs `workspace` collection setup first
-- `shotgun run` (all collections) does not double-run workspace setup even if both `graph` and `code` depend on it
+- `shogun run --collection graph` automatically runs `workspace` collection setup first
+- `shogun run` (all collections) does not double-run workspace setup even if both `graph` and `code` depend on it
 
 ---
 
@@ -145,7 +145,7 @@ This will diverge. It already is a problem.
 
 Introduce a `tests/fixtures/` directory (not to be confused with JSON body fixtures, which stay in `tests/fixtures/` under the old meaning — we'll use `tests/setup-fixtures/` to be explicit, or a dedicated top-level `fixtures/` path in config).
 
-**Config addition** (`shotgun.config.yaml`):
+**Config addition** (`shogun.config.yaml`):
 ```yaml
 paths:
   setup_fixtures: ./tests/setup-fixtures   # new; optional, defaults shown
@@ -218,7 +218,7 @@ Fixtures should be **idempotent** by convention, guarded by a `ctx.vars._fixture
 - `workspace-load.yaml` fixture exists and is referenced by both `graph` and `code` collections
 - Both collections' `setup:` scripts no longer contain workspace-load logic
 - Running either collection produces identical behavior to today
-- `shotgun lint` validates that referenced fixture files exist
+- `shogun lint` validates that referenced fixture files exist
 - A missing fixture file throws at load time: `Setup fixture not found: workspace-load`
 
 ---
@@ -285,7 +285,7 @@ export interface SessionState {
 
 ```mermaid
 flowchart TD
-    A[shotgun run --file delete-graph-node-a] --> B[Load test definition]
+    A[shogun run --file delete-graph-node-a] --> B[Load test definition]
     B --> C{Has dependsOn?}
     C -->|yes| D[Build dependency graph]
     D --> E[Topological sort]
@@ -328,7 +328,7 @@ flowchart TD
 - No parallel execution of independent dependency branches (future)
 - No automatic teardown of dependency-injected state (caller is responsible)
 - Fixture teardown hooks (fixtures are setup-only; teardown stays in collection teardown)
-- Dependency visualization UI (useful future feature — `shotgun deps --test graph/delete-graph-node-a`)
+- Dependency visualization UI (useful future feature — `shogun deps --test graph/delete-graph-node-a`)
 
 ---
 
@@ -338,7 +338,7 @@ flowchart TD
 2. Add `setup_fixtures: [workspace-load]` to `graph/_collection.yaml` and `code/_collection.yaml`
 3. Remove the workspace-load block from both collection `setup:` scripts
 4. Add `dependsOn:` to delete/modify tests that rely on create tests having run first
-5. Run `shotgun lint` to validate the graph is clean
+5. Run `shogun lint` to validate the graph is clean
 
 This migration is **non-breaking** — all old-style collections without these new fields work identically.
 

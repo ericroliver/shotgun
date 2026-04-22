@@ -5,7 +5,7 @@
 
 import { mkdirSync, writeFileSync, readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import type { RunSummary, TestResult, ShotgunConfig } from './types.js';
+import type { RunSummary, TestResult, ShogunConfig } from './types.js';
 
 export class RunLogger {
   private readonly runId: string;
@@ -13,7 +13,7 @@ export class RunLogger {
   private readonly results: TestResult[] = [];
   private startedAt: string;
 
-  constructor(private readonly config: ShotgunConfig, private readonly cwd: string = process.cwd()) {
+  constructor(private readonly config: ShogunConfig, private readonly cwd: string = process.cwd()) {
     this.startedAt = new Date().toISOString();
     this.runId = formatRunId(new Date());
     const runsBase = join(cwd, config.paths?.runs ?? 'runs');
@@ -81,7 +81,7 @@ export class RunLogger {
 }
 
 /** Load the latest run summary from the runs directory. */
-export function loadLatestRun(config: ShotgunConfig, cwd = process.cwd()): RunSummary | null {
+export function loadLatestRun(config: ShogunConfig, cwd = process.cwd()): RunSummary | null {
   const runsBase = join(cwd, config.paths?.runs ?? 'runs');
   if (!existsSync(runsBase)) return null;
 
@@ -96,7 +96,7 @@ export function loadLatestRun(config: ShotgunConfig, cwd = process.cwd()): RunSu
 }
 
 /** Load a specific run by ID (timestamp string). */
-export function loadRunById(runId: string, config: ShotgunConfig, cwd = process.cwd()): RunSummary | null {
+export function loadRunById(runId: string, config: ShogunConfig, cwd = process.cwd()): RunSummary | null {
   const summaryPath = join(cwd, config.paths?.runs ?? 'runs', runId, 'summary.json');
   if (!existsSync(summaryPath)) return null;
 

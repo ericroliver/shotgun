@@ -115,7 +115,7 @@ export function printTestResult(result: TestResult): void {
     }
     case 'needs_baseline':
       process.stdout.write(`${c.yellow}NEEDS BASELINE${c.reset}\n`);
-      console.log(`    ${c.yellow}Run: shotgun snapshot to capture baseline${c.reset}`);
+      console.log(`    ${c.yellow}Run: shogun snapshot to capture baseline${c.reset}`);
       break;
     case 'dependency_failed':
       // Concise: one line names the blocking dep; full detail is on the dep's own output line
@@ -126,11 +126,11 @@ export function printTestResult(result: TestResult): void {
       break;
   }
 
-  // Always show script output for failed tests; gate on SHOTGUN_DEBUG for passing
+  // Always show script output for failed tests; gate on SHOGUN_DEBUG for passing
   const showScriptOutput =
     result.status === 'failed'
       ? result.scriptOutput?.length
-      : process.env.SHOTGUN_DEBUG && result.scriptOutput?.length;
+      : process.env.SHOGUN_DEBUG && result.scriptOutput?.length;
 
   if (showScriptOutput) {
     console.log(`    ${c.dim}── script output ─────────────────────────${c.reset}`);
@@ -239,7 +239,7 @@ export function printSummary(summary: RunSummary): void {
 }
 
 // ---------------------------------------------------------------------------
-// Full report (shotgun report command)
+// Full report (shogun report command)
 // ---------------------------------------------------------------------------
 
 export function printReport(summary: RunSummary, format: 'pretty' | 'json' | 'tap' = 'pretty'): void {

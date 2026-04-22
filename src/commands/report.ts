@@ -1,5 +1,5 @@
 /**
- * src/commands/report.ts — shotgun report subcommand
+ * src/commands/report.ts — shogun report subcommand
  * Reads run logs and prints a report without executing any tests.
  */
 
@@ -20,7 +20,7 @@ export async function report(args: ReportArgs): Promise<void> {
     : loadLatestRun(config);
 
   if (!summary) {
-    console.error('No run logs found. Run `shotgun run` first.');
+    console.error('No run logs found. Run `shogun run` first.');
     return;
   }
 

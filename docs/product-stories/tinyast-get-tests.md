@@ -29,7 +29,7 @@ The following GET endpoints are **new** in the Enigma spec vs the original Enigm
 
 ## Overview
 
-Build a complete shotgun test suite covering every GET endpoint in the Enigma API spec.
+Build a complete shogun test suite covering every GET endpoint in the Enigma API spec.
 Total: **112 GET endpoints** across **14 collections**, organized under `local-dev-test-repo/`.
 
 Auth is currently not required by the API but will be bearer token in the future. The auth
@@ -371,7 +371,7 @@ Tests that require a path param handle missing values explicitly:
 ## Snapshot Strategy
 
 - `snapshot: true` on all tests
-- On first run: tests marked `needs_baseline` — run `shotgun snapshot` to capture
+- On first run: tests marked `needs_baseline` — run `shogun snapshot` to capture
 - `ignore_fields` tuned per-test to strip volatile fields (timestamps, durations, etc.)
 - Baseline files land in `local-dev-test-repo/expected/{collection}/`
 
@@ -411,7 +411,7 @@ All 14 collections. Full GET coverage pass. Tests that require env vars will fai
 
 ```
 local-dev-test-repo/
-├── shotgun.config.yaml
+├── shogun.config.yaml
 ├── enigma-openapi-spec.json        # (existing)
 ├── enigma-endpoints.txt            # (existing)
 ├── envs/
@@ -439,14 +439,14 @@ local-dev-test-repo/
 │       ├── smoke.yaml
 │       └── gets-all.yaml
 └── expected/
-    └── (populated by shotgun snapshot)
+    └── (populated by shogun snapshot)
 ```
 
 ---
 
 ## Implementation Order
 
-1. **Config + env** — `shotgun.config.yaml`, `local.env.example`, `scripts/auth.ts`
+1. **Config + env** — `shogun.config.yaml`, `local.env.example`, `scripts/auth.ts`
 2. **Smoke-friendly collections first** — `system`, `workspace` (no path params)
 3. **Simple list collections** — `build`, `deps`, `diff`, `graph`, `merge`, `sensors`, `vc`
 4. **Agents** (needs `AGENT_NAME` or live agent)

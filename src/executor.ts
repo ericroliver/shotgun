@@ -9,7 +9,7 @@ import { unlinkSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
-import type { ShotgunRequest, ShotgunResponse, EnvVars } from './types.js';
+import type { ShogunRequest, ShogunResponse, EnvVars } from './types.js';
 
 export interface ExecutorOptions {
   timeout?: number;
@@ -17,7 +17,7 @@ export interface ExecutorOptions {
 }
 
 /**
- * Builds a ShotgunRequest from test definition + env, then executes it via curl.
+ * Builds a ShogunRequest from test definition + env, then executes it via curl.
  *
  * Performance notes:
  *  - Headers are passed as repeated -H args (no temp file write/unlink).
@@ -29,13 +29,13 @@ export interface ExecutorOptions {
  *    file. Both are unlinked in the finally block.
  */
 export async function executeRequest(
-  req: ShotgunRequest,
+  req: ShogunRequest,
   env: EnvVars,
   opts: ExecutorOptions = {},
-): Promise<ShotgunResponse> {
+): Promise<ShogunResponse> {
   const timeout = opts.timeout ?? parseInt(env.TIMEOUT ?? '10', 10);
   const tmpId = randomBytes(6).toString('hex');
-  const bodyOutFile = join(tmpdir(), `shotgun-body-${tmpId}.tmp`);
+  const bodyOutFile = join(tmpdir(), `shogun-body-${tmpId}.tmp`);
 
   // Build headers — passed directly as repeated -H args, no temp file.
   const headers: Record<string, string> = {
@@ -66,7 +66,7 @@ export async function executeRequest(
   curlArgs.push(
     '-o', bodyOutFile,
     '-D', '-',                         // dump response headers to stdout
-    '-w', '\n__SHOTGUN_STATUS__%{http_code}__SHOTGUN_TIME__%{time_total}',
+    '-w', '\n__SHOGUN_STATUS__%{http_code}__SHOGUN_TIME__%{time_total}',
     ...(opts.followRedirects !== false ? ['-L'] : []),
     url,
   );
@@ -78,7 +78,7 @@ export async function executeRequest(
   if (req.body !== undefined && req.body !== null) {
     const bodyStr = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
     const byteLen = Buffer.byteLength(bodyStr, 'utf8');
-    bodyInFile = join(tmpdir(), `shotgun-req-${tmpId}.tmp`);
+    bodyInFile = join(tmpdir(), `shogun-req-${tmpId}.tmp`);
     writeFileSync(bodyInFile, bodyStr, 'utf8');
     // Verify what was actually written — read it back immediately.
     const verified = readFileSync(bodyInFile, 'utf8');
@@ -100,7 +100,7 @@ export async function executeRequest(
     const duration = Date.now() - startTime;
 
     // Parse stdout: response headers + sentinel line with status + time
-    const sentinelMatch = stdout.match(/__SHOTGUN_STATUS__(\d+)__SHOTGUN_TIME__([\d.]+)/);
+    const sentinelMatch = stdout.match(/__SHOGUN_STATUS__(\d+)__SHOGUN_TIME__([\d.]+)/);
     const status = sentinelMatch ? parseInt(sentinelMatch[1], 10) : 0;
     // curl reports time_total in fractional seconds — convert to ms
     const curlMs = sentinelMatch ? Math.round(parseFloat(sentinelMatch[2]) * 1000) : duration;
@@ -123,7 +123,7 @@ export async function executeRequest(
       // non-JSON body — keep as string
     }
 
-    if (stderr && process.env.SHOTGUN_DEBUG) {
+    if (stderr && process.env.SHOGUN_DEBUG) {
       console.error(`[executor] curl stderr: ${stderr}`);
     }
 
@@ -141,7 +141,7 @@ export async function executeRequest(
   }
 }
 
-function buildUrl(req: ShotgunRequest, _env: EnvVars): string {
+function buildUrl(req: ShogunRequest, _env: EnvVars): string {
   let url = req.url;
   const params = req.params;
   if (params && Object.keys(params).length > 0) {

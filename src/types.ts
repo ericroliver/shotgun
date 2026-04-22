@@ -1,6 +1,6 @@
 /**
  * src/types.ts
- * Shared types for the shotgun API testing engine.
+ * Shared types for the shogun API testing engine.
  */
 
 // ---------------------------------------------------------------------------
@@ -126,7 +126,7 @@ export interface SetupFixtureDefinition {
 // Runtime context — injected into pre/post scripts
 // ---------------------------------------------------------------------------
 
-export interface ShotgunRequest {
+export interface ShogunRequest {
   method: string;
   url: string;
   path: string;
@@ -135,7 +135,7 @@ export interface ShotgunRequest {
   body?: unknown;
 }
 
-export interface ShotgunResponse {
+export interface ShogunResponse {
   status: number;
   headers: Record<string, string>;
   body: unknown;
@@ -146,11 +146,11 @@ export interface ShotgunResponse {
 }
 
 export type HttpMethod = {
-  get(path: string, opts?: RequestOpts): Promise<ShotgunResponse>;
-  post(path: string, body: unknown, opts?: RequestOpts): Promise<ShotgunResponse>;
-  put(path: string, body: unknown, opts?: RequestOpts): Promise<ShotgunResponse>;
-  patch(path: string, body: unknown, opts?: RequestOpts): Promise<ShotgunResponse>;
-  delete(path: string, opts?: RequestOpts): Promise<ShotgunResponse>;
+  get(path: string, opts?: RequestOpts): Promise<ShogunResponse>;
+  post(path: string, body: unknown, opts?: RequestOpts): Promise<ShogunResponse>;
+  put(path: string, body: unknown, opts?: RequestOpts): Promise<ShogunResponse>;
+  patch(path: string, body: unknown, opts?: RequestOpts): Promise<ShogunResponse>;
+  delete(path: string, opts?: RequestOpts): Promise<ShogunResponse>;
 };
 
 export interface RequestOpts {
@@ -159,16 +159,16 @@ export interface RequestOpts {
   timeout?: number;
 }
 
-export interface ShotgunContext {
+export interface ShogunContext {
   /** Merged env vars: global config + .env file + test-level overrides */
   env: EnvVars;
   /** Mutable cross-test variable store — persists for the entire run */
   vars: Record<string, unknown>;
   /** Current request — mutable in pre-script */
-  request: ShotgunRequest;
+  request: ShogunRequest;
   /** Current response — available in post-script */
-  response: ShotgunResponse;
-  /** Throws ShotgunAssertionError if condition is false */
+  response: ShogunResponse;
+  /** Throws ShogunAssertionError if condition is false */
   assert(condition: boolean, message: string): void;
   /** Write a message to stdout and to the per-test run log */
   log(message: string): void;
@@ -235,12 +235,12 @@ export interface TestResult {
    * The resolved request that was (or would have been) sent to the server.
    * Only populated on failed tests — omitted on passing tests to reduce noise.
    */
-  resolvedRequest?: ShotgunRequest;
+  resolvedRequest?: ShogunRequest;
   /**
    * The raw HTTP response received from the server.
    * Only populated on failed tests — omitted on passing tests to reduce noise.
    */
-  resolvedResponse?: ShotgunResponse;
+  resolvedResponse?: ShogunResponse;
 }
 
 export interface RunSummary {
@@ -260,11 +260,11 @@ export interface RunSummary {
 }
 
 // ---------------------------------------------------------------------------
-// Session state — tracks what has executed within a single shotgun run
+// Session state — tracks what has executed within a single shogun run
 // ---------------------------------------------------------------------------
 
 /**
- * Maintained for the lifetime of a single `shotgun run` invocation.
+ * Maintained for the lifetime of a single `shogun run` invocation.
  * Ensures deps and fixtures execute at most once per session.
  */
 export interface SessionState {
@@ -288,10 +288,10 @@ export interface SessionState {
 }
 
 // ---------------------------------------------------------------------------
-// Config file schema (shotgun.config.yaml)
+// Config file schema (shogun.config.yaml)
 // ---------------------------------------------------------------------------
 
-export interface ShotgunConfig {
+export interface ShogunConfig {
   version: number;
   defaults?: {
     env?: string;
@@ -320,16 +320,16 @@ export interface ShotgunConfig {
 // Errors
 // ---------------------------------------------------------------------------
 
-export class ShotgunAssertionError extends Error {
+export class ShogunAssertionError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'ShotgunAssertionError';
+    this.name = 'ShogunAssertionError';
   }
 }
 
-export class ShotgunConfigError extends Error {
+export class ShogunConfigError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'ShotgunConfigError';
+    this.name = 'ShogunConfigError';
   }
 }
