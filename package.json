@@ -23,6 +23,7 @@
     "start": "node dist/index.js",
     "prepublishOnly": "npm run build",
     "lint:yaml": "tsx src/index.ts lint",
+    "test:unit": "tsx --test src/tests/suite-collection-vars.test.ts",
     "test:smoke": "tsx src/index.ts run --suite smoke",
     "test:tsap": "tsx src/index.ts run --suite tsap",
     "test:failures": "tsx src/index.ts run --collection _failures_",
