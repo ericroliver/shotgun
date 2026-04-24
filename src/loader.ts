@@ -50,8 +50,11 @@ const ShogunConfigSchema = z.object({
 });
 
 export function loadConfig(cwd: string = process.cwd()): ShogunConfig {
-  const configPath = join(cwd, 'shogun.config.yaml');
-  if (!existsSync(configPath)) {
+  // Support both spellings: "shogun.config.yaml" (canonical) and
+  // "shotgun.config.yaml" (legacy name used in existing test repos)
+  const candidateNames = ['shogun.config.yaml', 'shotgun.config.yaml'];
+  const configPath = candidateNames.map(n => join(cwd, n)).find(p => existsSync(p));
+  if (!configPath) {
     // Return sensible defaults when no config file is present
     return { version: 1 };
   }

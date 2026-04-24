@@ -8,6 +8,7 @@ import { snapshot } from './commands/snapshot.js';
 import { report } from './commands/report.js';
 import { lint } from './commands/lint.js';
 import { spec } from './commands/spec.js';
+import { coverage } from './commands/coverage.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
@@ -56,6 +57,14 @@ Usage:
   shogun spec --format json           JSON output (for scripting)
   shogun spec [spec-source]           Override spec URL or local file path
 
+  shogun coverage                     API test coverage matrix
+  shogun coverage --env local         Load env for live spec fetching
+  shogun coverage --collection graph  Scope tests to one collection
+  shogun coverage --suite smoke       Scope tests to a named suite
+  shogun coverage --tag Agents        Scope spec to a tag group
+  shogun coverage --uncovered         Show only uncovered endpoints
+  shogun coverage --format json       JSON output (for scripting)
+
   shogun --version                    Print version
   shogun --help                       Print this message
 `.trimStart();
@@ -77,6 +86,8 @@ interface ParsedArgs {
   schema?: string;
   search?: string;
   list?: boolean;
+  // coverage-specific
+  uncovered?: boolean;
 }
 
 function parseArgs(argv: string[]): ParsedArgs {
@@ -99,6 +110,7 @@ function parseArgs(argv: string[]): ParsedArgs {
       case '--schema':     result.schema = argv[++i]; break;
       case '--search':     result.search = argv[++i]; break;
       case '--list':       result.list = true; break;
+      case '--uncovered':  result.uncovered = true; break;
       default:
         // Bare positional (no -- prefix) — used as spec source override
         if (!arg.startsWith('--')) {
@@ -160,6 +172,20 @@ async function main() {
         schema: args.schema,
         search: args.search,
         list: args.list,
+        format: args.format as 'pretty' | 'json' | 'markdown' | undefined,
+        cwd: args.cwd,
+      });
+      process.exit(exitCode);
+      break;
+    }
+    case 'coverage': {
+      const exitCode = await coverage({
+        specSource: args.specSource,
+        env: args.env,
+        collection: args.collection,
+        suite: args.suite,
+        tag: args.tag,
+        uncovered: args.uncovered,
         format: args.format as 'pretty' | 'json' | 'markdown' | undefined,
         cwd: args.cwd,
       });
