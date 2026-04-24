@@ -8,6 +8,7 @@ import { runTests } from '../runner.js';
 export interface SnapshotArgs {
   env?: string;
   collection?: string;
+  suite?: string;
   file?: string;
 }
 
@@ -17,6 +18,7 @@ export async function snapshot(args: SnapshotArgs): Promise<number> {
     const summary = await runTests({
       env: args.env,
       collection: args.collection,
+      suite: args.suite,
       file: args.file,
       snapshotMode: true,
     });

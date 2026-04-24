@@ -5,7 +5,7 @@
  */
 
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
-import { join, resolve, dirname, basename } from 'node:path';
+import { join, resolve, dirname, basename, isAbsolute } from 'node:path';
 import * as yaml from 'js-yaml';
 import { z } from 'zod';
 import { config as dotenvConfig } from 'dotenv';
@@ -43,6 +43,9 @@ const ShogunConfigSchema = z.object({
     format: z.enum(['pretty', 'json', 'tap']).optional(),
     on_fail: z.enum(['diff', 'body', 'silent']).optional(),
     save_passing_logs: z.boolean().optional(),
+  }).optional(),
+  spec: z.object({
+    path: z.string().min(1),
   }).optional(),
 });
 
@@ -475,4 +478,85 @@ export function sanitizeName(method: string, path: string): string {
     .replace(/[{}]/g, '_')
     .replace(/_{2,}/g, '_')
     .replace(/^_|_$/g, '');
+}
+
+// ---------------------------------------------------------------------------
+// Spec fetcher
+// ---------------------------------------------------------------------------
+
+export type SpecSourceType = 'full-url' | 'relative-url' | 'local-file';
+
+/**
+ * Resolves how the spec source string should be treated and fetches/reads it.
+ *
+ * Priority:
+ *   1. `specSource` positional arg (overrides everything)
+ *   2. `config.spec.path` from shogun.config.yaml
+ *   3. Error — exit 1
+ *
+ * Detection:
+ *   - Starts with "http://" or "https://"   → full URL, fetch directly
+ *   - Local file exists at resolved path     → readFileSync
+ *   - Otherwise                              → relative URL, prepend BASE_URL from env
+ */
+export async function fetchSpec(
+  specSource: string | undefined,
+  config: ShogunConfig,
+  env: EnvVars,
+  cwd: string = process.cwd(),
+): Promise<{ raw: string; sourceType: SpecSourceType; resolvedUrl: string }> {
+  // 1. Determine the raw source string
+  const rawSource = specSource ?? config.spec?.path;
+
+  if (!rawSource) {
+    throw new Error(
+      'No spec source. Set spec.path in shogun.config.yaml or pass a source as the first argument.\n' +
+      '  Examples:\n' +
+      '    shogun spec --env local --endpoint /api/workspaces\n' +
+      '    shogun spec http://localhost:5000/swagger/v1/swagger.json --endpoint /api/workspaces\n' +
+      '    shogun spec specs/enigma-api.json --endpoint /api/workspaces   # local file fallback',
+    );
+  }
+
+  // 2. Determine source type
+  if (rawSource.startsWith('http://') || rawSource.startsWith('https://')) {
+    // Full URL — fetch directly
+    const text = await httpGet(rawSource);
+    return { raw: text, sourceType: 'full-url', resolvedUrl: rawSource };
+  }
+
+  // Check if it resolves to a local file
+  const localPath = isAbsolute(rawSource)
+    ? rawSource
+    : resolve(cwd, rawSource);
+
+  if (existsSync(localPath)) {
+    const text = readFileSync(localPath, 'utf8');
+    return { raw: text, sourceType: 'local-file', resolvedUrl: localPath };
+  }
+
+  // Relative URL — needs BASE_URL
+  const baseUrl = (env['BASE_URL'] ?? '').trim().replace(/\/$/, '');
+  if (!baseUrl) {
+    throw new Error(
+      `Cannot resolve spec source "${rawSource}".\n` +
+      `  No local file found at that path, and BASE_URL is not set.\n` +
+      `  Options:\n` +
+      `    • Pass --env <name> to load BASE_URL from an env file\n` +
+      `    • Use a full URL: shogun spec http://localhost:5000/${rawSource}\n` +
+      `    • Use a local file: shogun spec specs/enigma-api.json`,
+    );
+  }
+
+  const fullUrl = `${baseUrl}/${rawSource.replace(/^\//, '')}`;
+  const text = await httpGet(fullUrl);
+  return { raw: text, sourceType: 'relative-url', resolvedUrl: fullUrl };
+}
+
+async function httpGet(url: string): Promise<string> {
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch spec from ${url}: HTTP ${res.status} ${res.statusText}`);
+  }
+  return res.text();
 }

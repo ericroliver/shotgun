@@ -231,14 +231,20 @@ async function normalizeJson(raw: string, ignoreFields: string[]): Promise<strin
 }
 
 function globToJqDel(field: string): string {
-  // "**.timestamp" → del(.. | objects | .timestamp?)
-  // ".timestamp"   → del(.timestamp)
-  // "**.id"        → del(.. | objects | .id?)
+  // "**.timestamp"  → del(.. | objects | .timestamp?)   (recursive, any depth)
+  // "**._sensors"   → del(.. | objects | ._sensors?)    (recursive, any depth)
+  // ".timestamp"    → del(.timestamp)                   (top-level only, dot-prefixed)
+  // "timestamp"     → del(.timestamp)                   (top-level only, bare name)
   if (field.startsWith('**.')) {
     const key = field.slice(3);
     return `del(.. | objects | .${key}?)`;
   }
-  return `del(${field})`;
+  // Already has a leading dot → pass through as-is
+  if (field.startsWith('.')) {
+    return `del(${field})`;
+  }
+  // Bare field name (no prefix) → treat as top-level del
+  return `del(.${field})`;
 }
 
 // ---------------------------------------------------------------------------

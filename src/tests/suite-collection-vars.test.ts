@@ -18,14 +18,14 @@ import { mkdirSync, writeFileSync, rmSync, mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { loadCollection, loadSuite } from '../loader.js';
-import type { ShotgunConfig } from '../types.js';
+import type { ShogunConfig } from '../types.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Create a minimal ShotgunConfig pointing at a tmp directory */
-function makeConfig(cwd: string): ShotgunConfig {
+/** Create a minimal ShogunConfig pointing at a tmp directory */
+function makeConfig(cwd: string): ShogunConfig {
   return {
     version: 1,
     paths: {

@@ -137,7 +137,7 @@ const ctx = {
   },
 };
 
-async function __httpCall(method: string, path: string, body?: unknown, _opts?: unknown) {
+async function __httpCall(method: string, path: string, body?: unknown, _opts?: Record<string, unknown>) {
   const baseUrl = ctx.env.BASE_URL ?? '';
   const url = path.startsWith('http') ? path : baseUrl + path;
   const headers: Record<string, string> = {
@@ -147,6 +147,12 @@ async function __httpCall(method: string, path: string, body?: unknown, _opts?: 
   if (ctx.env.AUTH_TOKEN) {
     const t = ctx.env.AUTH_TOKEN;
     headers['Authorization'] = t.startsWith('Bearer ') ? t : 'Bearer ' + t;
+  }
+  // Merge caller-supplied headers (e.g. X-TinyAST-Workspace) — these take precedence
+  if (_opts?.headers && typeof _opts.headers === 'object') {
+    for (const [k, v] of Object.entries(_opts.headers as Record<string, string>)) {
+      if (v !== undefined && v !== null) headers[k] = String(v);
+    }
   }
 
   // Always log the outgoing request so failures show full context

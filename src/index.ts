@@ -7,6 +7,7 @@ import { run } from './commands/run.js';
 import { snapshot } from './commands/snapshot.js';
 import { report } from './commands/report.js';
 import { lint } from './commands/lint.js';
+import { spec } from './commands/spec.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
@@ -37,6 +38,7 @@ Usage:
   shogun run --format json            JSON output (for CI)
 
   shogun snapshot                     Capture/update all baselines
+  shogun snapshot --suite api-testapp-1  Snapshot with suite vars (workspace etc.)
   shogun snapshot --file path/...     Update single test baseline
 
   shogun report                       Show last run report
@@ -44,6 +46,15 @@ Usage:
 
   shogun lint                         Validate all YAML files
   shogun lint --file path/to/test.yaml
+
+  shogun spec                         List all API endpoints (live from spec)
+  shogun spec --env local --endpoint /api/workspaces --method GET
+  shogun spec --tag Agents            All endpoints in a tag group
+  shogun spec --schema AgentDef       Resolve a named schema ($refs inlined)
+  shogun spec --search checkpoint     Keyword search across summaries
+  shogun spec --list                  Explicit list mode
+  shogun spec --format json           JSON output (for scripting)
+  shogun spec [spec-source]           Override spec URL or local file path
 
   shogun --version                    Print version
   shogun --help                       Print this message
@@ -55,23 +66,45 @@ interface ParsedArgs {
   tags?: string[];
   suite?: string;
   file?: string;
-  format?: 'pretty' | 'json' | 'tap';
+  format?: 'pretty' | 'json' | 'tap' | 'markdown';
   run?: string;
   cwd?: string;
+  // spec-specific
+  specSource?: string;
+  endpoint?: string;
+  method?: string;
+  tag?: string;
+  schema?: string;
+  search?: string;
+  list?: boolean;
 }
 
 function parseArgs(argv: string[]): ParsedArgs {
   const result: ParsedArgs = {};
   for (let i = 0; i < argv.length; i++) {
-    switch (argv[i]) {
+    const arg = argv[i]!;
+    switch (arg) {
       case '--env':        result.env = argv[++i]; break;
       case '--collection': result.collection = argv[++i]; break;
-      case '--tags':       result.tags = argv[++i].split(',').map(t => t.trim()); break;
+      case '--tags':       result.tags = argv[++i]!.split(',').map(t => t.trim()); break;
       case '--suite':      result.suite = argv[++i]; break;
       case '--file':       result.file = argv[++i]; break;
       case '--format':     result.format = argv[++i] as ParsedArgs['format']; break;
       case '--run':        result.run = argv[++i]; break;
       case '--cwd':        result.cwd = argv[++i]; break;
+      // spec flags
+      case '--endpoint':   result.endpoint = argv[++i]; break;
+      case '--method':     result.method = argv[++i]; break;
+      case '--tag':        result.tag = argv[++i]; break;
+      case '--schema':     result.schema = argv[++i]; break;
+      case '--search':     result.search = argv[++i]; break;
+      case '--list':       result.list = true; break;
+      default:
+        // Bare positional (no -- prefix) — used as spec source override
+        if (!arg.startsWith('--')) {
+          result.specSource = arg;
+        }
+        break;
     }
   }
   return result;
@@ -98,7 +131,7 @@ async function main() {
 
   switch (subcommand) {
     case 'run': {
-      const exitCode = await run(args);
+      const exitCode = await run({ ...args, format: args.format as 'pretty' | 'json' | 'tap' | undefined });
       process.exit(exitCode);
       break;
     }
@@ -108,12 +141,28 @@ async function main() {
       break;
     }
     case 'report': {
-      await report(args);
+      await report({ ...args, format: args.format as 'pretty' | 'json' | 'tap' | undefined });
       process.exit(0);
       break;
     }
     case 'lint': {
       const exitCode = await lint(args);
+      process.exit(exitCode);
+      break;
+    }
+    case 'spec': {
+      const exitCode = await spec({
+        specSource: args.specSource,
+        env: args.env,
+        endpoint: args.endpoint,
+        method: args.method,
+        tag: args.tag,
+        schema: args.schema,
+        search: args.search,
+        list: args.list,
+        format: args.format as 'pretty' | 'json' | 'markdown' | undefined,
+        cwd: args.cwd,
+      });
       process.exit(exitCode);
       break;
     }
