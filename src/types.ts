@@ -291,6 +291,15 @@ export interface SessionState {
 // Config file schema (shogun.config.yaml)
 // ---------------------------------------------------------------------------
 
+export interface SpecConfig {
+  /**
+   * Server-relative route to the live OpenAPI JSON endpoint.
+   * Fetched at runtime as: {BASE_URL}/{path}
+   * Example: "swagger/v1/swagger.json"
+   */
+  path: string;
+}
+
 export interface ShogunConfig {
   version: number;
   defaults?: {
@@ -314,6 +323,8 @@ export interface ShogunConfig {
     on_fail?: 'diff' | 'body' | 'silent';
     save_passing_logs?: boolean;
   };
+  /** OpenAPI spec source configuration */
+  spec?: SpecConfig;
 }
 
 // ---------------------------------------------------------------------------

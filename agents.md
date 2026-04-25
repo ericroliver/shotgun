@@ -31,6 +31,11 @@ The core philosophy: use UNIX tools (curl, jq, diff) for HTTP execution and resp
 
 **This repo is the shogun engine** — the CLI tool itself. The test definitions (YAML) live in a separate "test repo" that the user creates. A reference test repo lives at [`local-dev-test-repo/`](local-dev-test-repo/) and is the integration target for all shogun development work.
 
+[`local-dev-test-repo/`](local-dev-test-repo/) is testing a real repo (Engigma) and we seek to accomplish two goals:
+- stretch the limits of shogun to learn where we need to improve and extend
+- find legitimate bugs in the Enigma api. It is under rapid development as well. When tests break and you are told that the Engima API team has shipped major updates, we need to be reviewing fails in terms of perhaps there is a break in the Enigma API itself. You can't assume the tests are wrong.
+
+
 ---
 
 ## Key Signposts
@@ -63,6 +68,8 @@ This is the live integration test bed — shogun is run against a real API using
 | `local-dev-test-repo/expected/` | Snapshot baselines — committed to git |
 | `local-dev-test-repo/testing-plans/` | Human-written plans for each collection (living design docs) |
 | `local-dev-test-repo/specs/` | OpenAPI spec and API summary for the target API |
+| `local-dev-test-repo/specs/enigma-api.json` | Full OpenAPI 3.0.1 spec — **do not read whole file**; use `shogun spec` instead |
+| `local-dev-test-repo/specs/enigma-api-summary.txt` | Generated summary: `METHOD /path` pairs only — for quick listing |
 
 ### Documentation (`docs/`)
 
@@ -114,6 +121,15 @@ shogun run --suite smoke                 # named suite
 shogun snapshot --env local              # capture/update all baselines
 shogun lint                              # validate YAML without HTTP
 shogun report                            # show last run
+
+# Spec queries — slice the OpenAPI contract without reading the full JSON
+# spec.path must be set in shogun.config.yaml (or passed as first positional arg)
+shogun spec --list                                       # all endpoints: METHOD /path
+shogun spec --endpoint /api/code/checkpoints            # all methods for one path
+shogun spec --endpoint /api/workspaces --method GET     # single endpoint+method contract
+shogun spec --tag Agents                                # all endpoints in a tag group
+shogun spec --schema AgentDefinition                    # resolve a named schema ($refs inlined)
+shogun spec --search checkpoint                         # keyword search across summaries
 ```
 
 ---
